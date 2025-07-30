@@ -14,6 +14,8 @@ pip install ilayoutx
 ## Layouts
 - line
 - circle
+- bipartite
+- random
 
 ## Rationale
 The layout code is in Rust and exposed to Python via the amazing [PyO3](https://pyo3.rs/), with the goal to combine speed (by the machine) with comfort (for the user).
