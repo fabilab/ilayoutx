@@ -120,6 +120,8 @@ fn random(py: Python<'_>, n: usize, xmin: f64, xmax: f64, ymin: f64, ymax: f64, 
 ///     radius (float): The radius of the outermost shell.
 ///     center (pair of floats): The center of the layout.
 ///     theta (float): The angle of the first shell in degrees.
+/// Returns:
+///     An n x 2 numpy array containing random x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (nlist, radius=1.0, center=(0.0, 0.0), theta=0.0))]
 fn shell(py: Python<'_>, nlist: Vec<Vec<usize>>, radius: f64, center: (f64, f64), theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
@@ -158,7 +160,43 @@ fn shell(py: Python<'_>, nlist: Vec<Vec<usize>>, radius: f64, center: (f64, f64)
             r += rshell;
         }
     }
-    
+    Ok(coords)
+}
+
+/// Spiral layout
+///
+/// Parameters:
+///     n (int): The number of vertices.
+///     radius (float): The radius of the spiral.
+///     center (pair of floats): The center of the spiral.
+///     slope (float): Angular distance in degree between consecutive vertices.
+///     theta (float): The initial angle of the spiral in degrees.
+/// Returns:
+///     An n x 2 numpy array containing random x and y coordinates of the vertices.
+#[pyfunction]
+#[pyo3(signature = (n, radius=1.0, center=(0.0, 0.0), slope=1.0, theta=0.0))]
+fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    let theta = theta.to_radians();
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
+
+    // FIXME: This is quite broken still I believe
+    let mut angle : f64 = theta;
+    let mut rmax : f64= 0.0;
+    for i in 0..n {
+        rmax += slope;
+        angle += 1.0 / rmax;
+    }
+    // rmax is now the largest radius, rescale and recenter
+    angle = theta;
+    let mut r : f64 = 0.0;
+    for i in 0..n {
+        r += slope;
+        angle += 1.0 / r;
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = center.0 + r / rmax * radius * angle.cos();
+            *coords.get_mut([i, 1]).unwrap() = center.1 + r / rmax * radius * angle.sin();
+        }
+    }
     Ok(coords)
 }
 
@@ -172,6 +210,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bipartite, m)?)?;
     m.add_function(wrap_pyfunction!(random, m)?)?;
     m.add_function(wrap_pyfunction!(shell, m)?)?;
+    m.add_function(wrap_pyfunction!(spiral, m)?)?;
 
     Ok(())
 }
