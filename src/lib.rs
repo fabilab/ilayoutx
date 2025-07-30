@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
-use pyo3::types::PyList;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use numpy::{PyArrayMethods, PyArray2};
+
+
 
 /// Line layout, any angle theta in degrees
 /// 
@@ -8,18 +10,17 @@ use pyo3::types::PyList;
 ///     n (int): The number of vertices.
 ///     theta (float): The angle of the line in degrees.
 /// Returns:
-///     A list of tuples, each containing the x and y coordinates of the vertices.
+///     Ah n x 2 array containing the x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (n, theta=0.0))]
-fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyList>> {
-    let coords: Bound<'_, PyList>;
+fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
-    coords = PyList::empty(py);
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
     for i in 0..n {
-        let coordsi: Bound<'_, PyTuple>;
-        let elements: Vec<f64> = vec![(i as f64) * theta.cos(), (i as f64) * theta.sin()];
-        coordsi = PyTuple::new(py, elements)?;
-        coords.append(coordsi)?;
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = (i as f64) * theta.cos();
+            *coords.get_mut([i, 1]).unwrap() = (i as f64) * theta.sin();
+        }
     }
     Ok(coords)
 }
@@ -32,22 +33,80 @@ fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyList>> {
 ///     radius (float): The radius of the circle.
 ///     theta (float): The angle of the starting vertex in degrees.
 /// Returns:
-///     A list of tuples, each containing the x and y coordinates of the vertices.
+///     Ah n x 2 array containing the x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (n, radius=1.0, theta=0.0))]
-fn circle(py: Python<'_>, n: usize, radius: f64, theta: f64) -> PyResult<Bound<'_, PyList>> {
-    let coords: Bound<'_, PyList>;
+fn circle(py: Python<'_>, n: usize, radius: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
     let alpha : f64 = 2.0 * std::f64::consts::PI / n as f64;
-    coords = PyList::empty(py);
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
     for i in 0..n {
-        let coordsi: Bound<'_, PyTuple>;
-        let elements: Vec<f64> = vec![
-            radius * (theta + alpha * (i as f64)).cos(),
-            radius * (theta + alpha * (i as f64)).sin(),
-        ];
-        coordsi = PyTuple::new(py, elements)?;
-        coords.append(coordsi)?;
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = radius * (theta + alpha * (i as f64)).cos();
+            *coords.get_mut([i, 1]).unwrap() = radius * (theta + alpha * (i as f64)).sin();
+        }
+    }
+    Ok(coords)
+}
+
+/// Bipartite layout, two sets of vertices at any distance and angle theta in degrees
+///
+/// Parameters:
+///     n1 (int): The number of vertices in the first set.
+///     n2 (int): The number of vertices in the second set.
+///     distance (float): The distance between the two sets of vertices.
+///     theta (float): The angle of the line connecting the two sets in degrees.
+/// Returns:
+///     An (n1 + n2) x 2 numpy array, where the first n1 rows are the coordinates of the first set
+///     and the next n2 rows are the coordinates of the second set.
+#[pyfunction]
+#[pyo3(signature = (n1, n2, distance=1.0, theta=0.0))]
+fn bipartite(py: Python<'_>, n1: usize, n2: usize, distance: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    let theta = theta.to_radians();
+    let ntot = n1 + n2;
+    let coords = PyArray2::<f64>::zeros(py, [ntot, 2], true);
+    for i in 0..n1 {
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = (i as f64) * theta.sin();
+            *coords.get_mut([i, 1]).unwrap() = (i as f64) * theta.cos();
+        }
+    }
+    for i in 0..n2 {
+        unsafe {
+            *coords.get_mut([n1 + i, 0]).unwrap() = distance * theta.cos() + (i as f64) * theta.sin();
+            *coords.get_mut([n1 + i, 1]).unwrap() = distance * theta.sin() + (i as f64) * theta.cos();
+        }
+    }
+    Ok(coords)
+}
+
+
+/// Random layout
+///
+/// Parameters:
+///     n (int): The number of vertices.
+///     xmin (float): Minimum x coordinate.
+///     xmax (float): Maximum x coordinate.
+///     ymin (float): Minimum y coordinate.
+///     ymax (float): Maximum y coordinate. 
+///     seed (int | None): Random seed. If None, ask the Operating System for a random seed.
+/// Returns:
+///     An n x 2 numpy array containing random x and y coordinates of the vertices.
+#[pyfunction]
+#[pyo3(signature = (n, xmin=-1.0, xmax=1.0, ymin=-1.0, ymax=1.0, seed=std::option::Option::None))]
+fn random(py: Python<'_>, n: usize, xmin: f64, xmax: f64, ymin: f64, ymax: f64, seed: Option<usize>) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    let mut rng: StdRng;
+    if seed.is_none() {
+        rng = StdRng::from_os_rng();
+    } else {
+        rng = StdRng::seed_from_u64(u64::try_from(seed.unwrap())?);
+    }
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
+    for i in 0..n {
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = rng.random_range(xmin..xmax);
+            *coords.get_mut([i, 1]).unwrap() = rng.random_range(ymin..ymax);
+        }
     }
     Ok(coords)
 }
@@ -56,9 +115,11 @@ fn circle(py: Python<'_>, n: usize, radius: f64, theta: f64) -> PyResult<Bound<'
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(line, m)?)?;
     m.add_function(wrap_pyfunction!(circle, m)?)?;
+    m.add_function(wrap_pyfunction!(bipartite, m)?)?;
+    m.add_function(wrap_pyfunction!(random, m)?)?;
 
     Ok(())
 }

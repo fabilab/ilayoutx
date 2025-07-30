@@ -13,4 +13,6 @@ classifiers = [
 dynamic = ["version"]
 
 [tool.maturin]
+module-name = "ilayoutx._ilayoutx"
+python-source = "python"
 features = ["pyo3/extension-module"]
