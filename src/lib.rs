@@ -111,6 +111,57 @@ fn random(py: Python<'_>, n: usize, xmin: f64, xmax: f64, ymin: f64, ymax: f64, 
     Ok(coords)
 }
 
+/// Shell layout
+///
+/// Parameters:
+///     nlist (list of lists): Each list contains the vertices to be laid out in that shell,
+///         starting from the innermost shell. If the first shell has only one vertex, it
+///         will be placed at the origin.
+///     radius (float): The radius of the outermost shell.
+///     center (pair of floats): The center of the layout.
+///     theta (float): The angle of the first shell in degrees.
+#[pyfunction]
+#[pyo3(signature = (nlist, radius=1.0, center=(0.0, 0.0), theta=0.0))]
+fn shell(py: Python<'_>, nlist: Vec<Vec<usize>>, radius: f64, center: (f64, f64), theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    let theta = theta.to_radians();
+    let n = nlist.iter().map(|v| v.len()).sum::<usize>();
+    let nshells = nlist.len();
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
+
+    if n > 0 {
+        let mut r : f64 = 0.0;
+        let mut i : usize = 0;
+        let mut rshell : f64 = 0.0;
+        for (ish, shell) in nlist.iter().enumerate() {
+            if ish == 0 {
+                if shell.len() > 1 {
+                    rshell = radius / (nshells as f64);
+                    r += rshell;
+                } else {
+                    if nshells > 1 {
+                        rshell = radius / ((nshells - 1) as f64);
+                    } else {
+                        // One shell, and that shell has one or zero elements
+                        rshell = radius;
+                    }
+                }
+            }
+            let alpha = 2.0 * std::f64::consts::PI / shell.len() as f64;
+            for (j, _) in shell.iter().enumerate() {
+                let angle = theta + alpha * j as f64;
+                unsafe {
+                    *coords.get_mut([i, 0]).unwrap() = center.0 + r * angle.cos();
+                    *coords.get_mut([i, 1]).unwrap() = center.1 + r * angle.sin();
+                }
+                i += 1;
+            }
+            r += rshell;
+        }
+    }
+    
+    Ok(coords)
+}
+
 
 
 /// A Python module implemented in Rust.
@@ -120,6 +171,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circle, m)?)?;
     m.add_function(wrap_pyfunction!(bipartite, m)?)?;
     m.add_function(wrap_pyfunction!(random, m)?)?;
+    m.add_function(wrap_pyfunction!(shell, m)?)?;
 
     Ok(())
 }
