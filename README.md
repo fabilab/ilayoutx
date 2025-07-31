@@ -2,7 +2,7 @@
 
 Compute fast network layouts. Intended as the upstream companion for [iplotx](https://github.com/fabilab/iplotx).
 
-**NOTE**: This software is pre-alpha quality. There are two layouts working, and they are almost trivial. And yet.
+**NOTE**: This software is pre-alpha quality. The API is very much in flux, and the documentation is sparse. Use at your own risk.
 
 ## Installation
 ```bash
