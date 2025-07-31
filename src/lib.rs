@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use numpy::{PyArrayMethods, PyArray2};
-mod kamada_kawai;
+//mod kamada_kawai;
 
 
 
@@ -183,7 +183,7 @@ fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64
     // FIXME: This is quite broken still I believe
     let mut angle : f64 = theta;
     let mut rmax : f64= 0.0;
-    for i in 0..n {
+    for _ in 0..n {
         rmax += slope;
         angle += 1.0 / rmax;
     }
@@ -212,7 +212,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(random, m)?)?;
     m.add_function(wrap_pyfunction!(shell, m)?)?;
     m.add_function(wrap_pyfunction!(spiral, m)?)?;
-    m.add_function(wrap_pyfunction!(kamada_kawai::layout, m)?)?;
+    //m.add_function(wrap_pyfunction!(kamada_kawai::layout, m)?)?;
 
     Ok(())
 }
