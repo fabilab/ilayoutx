@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use numpy::{PyArrayMethods, PyArray2};
+mod kamada_kawai;
 
 
 
@@ -211,6 +212,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(random, m)?)?;
     m.add_function(wrap_pyfunction!(shell, m)?)?;
     m.add_function(wrap_pyfunction!(spiral, m)?)?;
+    m.add_function(wrap_pyfunction!(kamada_kawai::layout, m)?)?;
 
     Ok(())
 }
