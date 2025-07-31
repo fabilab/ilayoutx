@@ -1,12 +1,9 @@
+use numpy::{PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use numpy::{PyArrayMethods, PyArray2};
-//mod kamada_kawai;
-
-
 
 /// Line layout, any angle theta in degrees
-/// 
+///
 /// Parameters:
 ///     n (int): The number of vertices.
 ///     theta (float): The angle of the line in degrees.
@@ -26,7 +23,6 @@ fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyArray2<f64
     Ok(coords)
 }
 
-
 /// Circle layout, starting vertex at any angle theta in degrees
 ///
 /// Parameters:
@@ -39,7 +35,7 @@ fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyArray2<f64
 #[pyo3(signature = (n, radius=1.0, theta=0.0))]
 fn circle(py: Python<'_>, n: usize, radius: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
-    let alpha : f64 = 2.0 * std::f64::consts::PI / n as f64;
+    let alpha: f64 = 2.0 * std::f64::consts::PI / n as f64;
     let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
     for i in 0..n {
         unsafe {
@@ -62,7 +58,13 @@ fn circle(py: Python<'_>, n: usize, radius: f64, theta: f64) -> PyResult<Bound<'
 ///     and the next n2 rows are the coordinates of the second set.
 #[pyfunction]
 #[pyo3(signature = (n1, n2, distance=1.0, theta=0.0))]
-fn bipartite(py: Python<'_>, n1: usize, n2: usize, distance: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+fn bipartite(
+    py: Python<'_>,
+    n1: usize,
+    n2: usize,
+    distance: f64,
+    theta: f64,
+) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
     let ntot = n1 + n2;
     let coords = PyArray2::<f64>::zeros(py, [ntot, 2], true);
@@ -74,13 +76,14 @@ fn bipartite(py: Python<'_>, n1: usize, n2: usize, distance: f64, theta: f64) ->
     }
     for i in 0..n2 {
         unsafe {
-            *coords.get_mut([n1 + i, 0]).unwrap() = distance * theta.cos() + (i as f64) * theta.sin();
-            *coords.get_mut([n1 + i, 1]).unwrap() = distance * theta.sin() + (i as f64) * theta.cos();
+            *coords.get_mut([n1 + i, 0]).unwrap() =
+                distance * theta.cos() + (i as f64) * theta.sin();
+            *coords.get_mut([n1 + i, 1]).unwrap() =
+                distance * theta.sin() + (i as f64) * theta.cos();
         }
     }
     Ok(coords)
 }
-
 
 /// Random layout
 ///
@@ -89,13 +92,21 @@ fn bipartite(py: Python<'_>, n1: usize, n2: usize, distance: f64, theta: f64) ->
 ///     xmin (float): Minimum x coordinate.
 ///     xmax (float): Maximum x coordinate.
 ///     ymin (float): Minimum y coordinate.
-///     ymax (float): Maximum y coordinate. 
+///     ymax (float): Maximum y coordinate.
 ///     seed (int | None): Random seed. If None, ask the Operating System for a random seed.
 /// Returns:
 ///     An n x 2 numpy array containing random x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (n, xmin=-1.0, xmax=1.0, ymin=-1.0, ymax=1.0, seed=std::option::Option::None))]
-fn random(py: Python<'_>, n: usize, xmin: f64, xmax: f64, ymin: f64, ymax: f64, seed: Option<usize>) -> PyResult<Bound<'_, PyArray2<f64>>> {
+fn random(
+    py: Python<'_>,
+    n: usize,
+    xmin: f64,
+    xmax: f64,
+    ymin: f64,
+    ymax: f64,
+    seed: Option<usize>,
+) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let mut rng: StdRng;
     if seed.is_none() {
         rng = StdRng::from_os_rng();
@@ -125,28 +136,32 @@ fn random(py: Python<'_>, n: usize, xmin: f64, xmax: f64, ymin: f64, ymax: f64, 
 ///     An n x 2 numpy array containing random x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (nlist, radius=1.0, center=(0.0, 0.0), theta=0.0))]
-fn shell(py: Python<'_>, nlist: Vec<Vec<usize>>, radius: f64, center: (f64, f64), theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+fn shell(
+    py: Python<'_>,
+    nlist: Vec<Vec<usize>>,
+    radius: f64,
+    center: (f64, f64),
+    theta: f64,
+) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
     let n = nlist.iter().map(|v| v.len()).sum::<usize>();
     let nshells = nlist.len();
     let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
 
     if n > 0 {
-        let mut r : f64 = 0.0;
-        let mut i : usize = 0;
-        let mut rshell : f64 = 0.0;
+        let mut r: f64 = 0.0;
+        let mut i: usize = 0;
+        let mut rshell: f64 = 0.0;
         for (ish, shell) in nlist.iter().enumerate() {
             if ish == 0 {
                 if shell.len() > 1 {
                     rshell = radius / (nshells as f64);
                     r += rshell;
+                } else if nshells > 1 {
+                    rshell = radius / ((nshells - 1) as f64);
                 } else {
-                    if nshells > 1 {
-                        rshell = radius / ((nshells - 1) as f64);
-                    } else {
-                        // One shell, and that shell has one or zero elements
-                        rshell = radius;
-                    }
+                    // One shell, and that shell has one or zero elements
+                    rshell = radius;
                 }
             }
             let alpha = 2.0 * std::f64::consts::PI / shell.len() as f64;
@@ -176,20 +191,27 @@ fn shell(py: Python<'_>, nlist: Vec<Vec<usize>>, radius: f64, center: (f64, f64)
 ///     An n x 2 numpy array containing random x and y coordinates of the vertices.
 #[pyfunction]
 #[pyo3(signature = (n, radius=1.0, center=(0.0, 0.0), slope=1.0, theta=0.0))]
-fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
+fn spiral(
+    py: Python<'_>,
+    n: usize,
+    radius: f64,
+    center: (f64, f64),
+    slope: f64,
+    theta: f64,
+) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
     let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
 
     // FIXME: This is quite broken still I believe
-    let mut angle : f64 = theta;
-    let mut rmax : f64= 0.0;
+    let mut angle: f64 = theta;
+    let mut rmax: f64 = 0.0;
     for _ in 0..n {
         rmax += slope;
         angle += 1.0 / rmax;
     }
     // rmax is now the largest radius, rescale and recenter
     angle = theta;
-    let mut r : f64 = 0.0;
+    let mut r: f64 = 0.0;
     for i in 0..n {
         r += slope;
         angle += 1.0 / r;
@@ -201,8 +223,7 @@ fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64
     Ok(coords)
 }
 
-
-/// Grid layout
+/// Square grid layout
 ///
 /// Parameters:
 ///     n (int): The number of vertices.
@@ -211,13 +232,15 @@ fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64
 ///     An n x 2 numpy array containing the x and y coordinates of the vertices arranged in a grid.
 #[pyfunction]
 #[pyo3(signature = (n, width))]
-fn grid(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f64>>> {
+fn grid_square(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f64>>> {
     if width == 0 {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Width must be greater than 0"));
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Width must be greater than 0",
+        ));
     }
     let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
-    
-    let mut x : usize = 0;
+
+    let mut x: usize = 0;
     let mut y: usize = 0;
     for i in 0..n {
         unsafe {
@@ -234,6 +257,44 @@ fn grid(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f
     Ok(coords)
 }
 
+/// Triangular grid layout
+///
+/// Parameters:
+///     n (int): The number of vertices.
+///     width (int): The number of vertices in each odd row of the grid. Even rows will have one
+///         fewer vertex.
+/// Returns:
+///     An n x 2 numpy array containing the x and y coordinates of the vertices arranged in a
+///     triangular grid.
+#[pyfunction]
+#[pyo3(signature = (n, width))]
+fn grid_triangle(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    if width == 0 {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Width must be greater than 0",
+        ));
+    }
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
+    let half_sqrt3 = 0.5 * (3.0_f64).sqrt();
+
+    let mut x: usize = 0;
+    let mut y: usize = 0;
+    for i in 0..n {
+        let xoffset: f64 = 0.5 * ((y % 2) as f64);
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = (x as f64) + xoffset;
+            *coords.get_mut([i, 1]).unwrap() = (y as f64) * half_sqrt3;
+        }
+        if x == width - 1 - ((y % 2) as usize) {
+            x = 0;
+            y += 1
+        } else {
+            x += 1;
+        }
+    }
+    Ok(coords)
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -243,9 +304,8 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(random, m)?)?;
     m.add_function(wrap_pyfunction!(shell, m)?)?;
     m.add_function(wrap_pyfunction!(spiral, m)?)?;
-    m.add_function(wrap_pyfunction!(grid, m)?)?;
-    //m.add_function(wrap_pyfunction!(kamada_kawai::layout, m)?)?;
+    m.add_function(wrap_pyfunction!(grid_square, m)?)?;
+    m.add_function(wrap_pyfunction!(grid_triangle, m)?)?;
 
     Ok(())
 }
-
