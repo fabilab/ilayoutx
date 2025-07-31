@@ -12,12 +12,21 @@ pip install ilayoutx
 (not working yet)
 
 ## Layouts
-- line
-- circle
-- bipartite
-- random
-- shell
-- spiral (WIP)
+- **Geometric**:
+  - line
+  - circle
+  - shell
+  - spiral (WIP)
+- **Grid or lattice**:
+  - square
+  - triangular
+- **Force-directed**:
+  - Kamada-Kawai
+- **Other**:
+  - bipartite
+  - random
+
+
 
 ## Rationale
 The layout code is in Rust and exposed to Python via the amazing [PyO3](https://pyo3.rs/), with the goal to combine speed (by the machine) with comfort (for the user).
