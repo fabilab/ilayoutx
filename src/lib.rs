@@ -202,6 +202,37 @@ fn spiral(py: Python<'_>, n: usize, radius: f64, center : (f64, f64), slope: f64
 }
 
 
+/// Grid layout
+///
+/// Parameters:
+///     n (int): The number of vertices.
+///     width (int): The number of vertices in each row of the grid.
+/// Returns:
+///     An n x 2 numpy array containing the x and y coordinates of the vertices arranged in a grid.
+#[pyfunction]
+#[pyo3(signature = (n, width))]
+fn grid(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f64>>> {
+    if width == 0 {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("Width must be greater than 0"));
+    }
+    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
+    
+    let mut x : usize = 0;
+    let mut y: usize = 0;
+    for i in 0..n {
+        unsafe {
+            *coords.get_mut([i, 0]).unwrap() = x as f64;
+            *coords.get_mut([i, 1]).unwrap() = y as f64;
+        }
+        if x == width - 1 {
+            x = 0;
+            y += 1;
+        } else {
+            x += 1;
+        }
+    }
+    Ok(coords)
+}
 
 /// A Python module implemented in Rust.
 #[pymodule]
@@ -212,6 +243,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(random, m)?)?;
     m.add_function(wrap_pyfunction!(shell, m)?)?;
     m.add_function(wrap_pyfunction!(spiral, m)?)?;
+    m.add_function(wrap_pyfunction!(grid, m)?)?;
     //m.add_function(wrap_pyfunction!(kamada_kawai::layout, m)?)?;
 
     Ok(())
