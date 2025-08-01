@@ -31,7 +31,7 @@ class NetworkXDataProvider(NetworkDataProvider):
         import networkx as nx
 
         n = self.number_of_vertices()
-        index = list(self.network.nodes())
+        index = self.vertices()
         tmp = pd.Series(np.arange(n), index=index)
         matrix = np.zeros((n, n), np.float64)
         for id_source, distd in nx.shortest_path_length(self.network, weight=weight):
@@ -44,3 +44,13 @@ class NetworkXDataProvider(NetworkDataProvider):
             matrix=matrix,
             index=index,
         )
+
+    def vertices(self) -> list:
+        """Get a list of vertices."""
+        return list(self.network.nodes())
+
+    def bipartite(self) -> tuple[set]:
+        """Get a bipartite split from a bipartite graph."""
+        import networkx as nx
+
+        return nx.bipartite.sets(self.network)

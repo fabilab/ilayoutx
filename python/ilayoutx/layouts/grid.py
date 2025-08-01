@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from ilayoutx._ilayoutx import (
     grid_square as grid_square_rust,
@@ -18,16 +19,13 @@ def grid(
         network: The network to layout.
         width: The width of the grid.
         shape: The shape of the grid, either 'square' or 'triangle'.
+    Returns:
+        A pandas.DataFrame with the layout.
     """
-
-    # 0. Find what we have
     nl = network_library(network)
     provider = data_providers[nl](network)
-
-    # 1. Get number of vertices
     nv = provider.number_of_vertices()
 
-    # 2. Make the coordinates
     if shape == "triangle":
         coords = grid_triangle_rust(nv, width)
     elif shape == "square":
@@ -37,4 +35,5 @@ def grid(
             f"Grid shape must be 'square' or 'triangular', not '{shape}'.",
         )
 
-    return coords
+    layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
+    return layout

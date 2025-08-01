@@ -39,3 +39,7 @@ class NetworkDataProvider(Protocol):
     def get_shortest_distance(self) -> pd.Series:
         """Get shortest distances between nodes."""
         ...
+
+    def get_vertices(self) -> list:
+        """Get a list of vertices."""
+        ...

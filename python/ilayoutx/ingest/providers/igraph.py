@@ -34,5 +34,16 @@ class IGraphDataProvider(NetworkDataProvider):
         matrix = np.asarray(matrix, dtype=np.float64)
         return dict(
             matrix=matrix,
-            index=self.network.vs.indices,
+            index=self.vertices(),
         )
+
+    def vertices(self) -> list:
+        """Get a list of vertices."""
+        return self.network.vs.indices
+
+    def bipartite(self) -> tuple[set]:
+        """Get a bipartite split from a bipartite graph."""
+        import igraph as ig
+
+        # TODO: igraph uses a different approach here, but we should patch the missing part
+        return nx.bipartite.sets(self.network)
