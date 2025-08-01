@@ -43,7 +43,10 @@ class IGraphDataProvider(NetworkDataProvider):
 
     def bipartite(self) -> tuple[set]:
         """Get a bipartite split from a bipartite graph."""
-        import igraph as ig
-
-        # TODO: igraph uses a different approach here, but we should patch the missing part
-        return nx.bipartite.sets(self.network)
+        is_bipartite, vertex_types = self.network.is_bipartite(return_types=True)
+        if not is_bipartite:
+            raise ValueError("The graph is not bipartite.")
+        vertex_types = np.array(vertex_types, bool)
+        first = np.flatnonzero(~vertex_types)
+        second = np.flatnonzero(vertex_types)
+        return first, second
