@@ -51,7 +51,7 @@ import pandas as pd
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 def arf_networkx(
     N,
-    index,
+    index: list,
     edges: Sequence[tuple[Hashable, Hashable]],
     pos: np.ndarray,
     scaling=1,
@@ -74,9 +74,8 @@ def arf_networkx(
 
     Parameters
     ----------
-    pos : dict
-        Initial  position of  the nodes.  If set  to None  a
-        random layout will be used.
+    pos : np.ndarray
+        Initial  position of  the nodes. The output will be stored in this variable.
     scaling : float
         Scales the radius of the circular layout space.
     a : float

@@ -46,6 +46,17 @@ class IGraphDataProvider(NetworkDataProvider):
         """Get a list of edges."""
         return self.network.get_edgelist()
 
+    def adjacency_matrix(self, weights=None) -> np.ndarray:
+        """Get the adjacency matrix as a numpy array."""
+        import igraph as ig
+
+        matrix = np.asarray(self.network.get_adjacency())
+        if weights is not None:
+            edge_indices = np.array(self.edges())
+            matrix[edge_indices[:, 0], edge_indices[:, 1]] = weights
+
+        return matrix
+
     def bipartite(self) -> tuple[set]:
         """Get a bipartite split from a bipartite graph."""
         is_bipartite, vertex_types = self.network.is_bipartite(return_types=True)

@@ -54,6 +54,12 @@ class NetworkXDataProvider(NetworkDataProvider):
         """Get a list of edges."""
         return list(self.network.edges())
 
+    def adjacency_matrix(self, weights=None) -> np.ndarray:
+        """Get the adjacency matrix as a numpy array."""
+        import networkx as nx
+
+        return nx.to_numpy_array(self.network, weight=weights)
+
     def bipartite(self) -> tuple[set]:
         """Get a bipartite split from a bipartite graph."""
         import networkx as nx

@@ -9,6 +9,7 @@ from .layouts.bipartite import bipartite
 from .layouts.grid import grid
 from .layouts.kamada_kawai import kamada_kawai
 from .layouts.arf import arf
+from .layouts.forceatlas2 import forceatlas2
 
 
 __all__ = (
@@ -21,4 +22,5 @@ __all__ = (
     grid.__name__,
     kamada_kawai.__name__,
     arf.__name__,
+    forceatlas2.__name__,
 )
