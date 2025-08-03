@@ -23,6 +23,7 @@ pip install ilayoutx
 - **Force-directed**:
   - Kamada-Kawai
   - ARF
+  - Forceatlas2
 - **Other**:
   - bipartite
   - random
