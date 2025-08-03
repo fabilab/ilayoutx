@@ -22,6 +22,7 @@ pip install ilayoutx
   - triangular
 - **Force-directed**:
   - Kamada-Kawai
+  - ARF
 - **Other**:
   - bipartite
   - random
