@@ -12,7 +12,7 @@ def grid(
     network,
     width: int,
     shape: str = "square",
-) -> np.ndarray:
+) -> pd.DataFrame:
     """A grid layout with specified width.
 
     Parameters:
@@ -24,7 +24,11 @@ def grid(
     """
     nl = network_library(network)
     provider = data_providers[nl](network)
+    index = provider.vertices()
     nv = provider.number_of_vertices()
+
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
 
     if shape == "triangle":
         coords = grid_triangle_rust(nv, width)
@@ -35,5 +39,5 @@ def grid(
             f"Grid shape must be 'square' or 'triangular', not '{shape}'.",
         )
 
-    layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
+    layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

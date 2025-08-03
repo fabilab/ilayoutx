@@ -8,6 +8,7 @@ from .layouts.basic import (
 from .layouts.bipartite import bipartite
 from .layouts.grid import grid
 from .layouts.kamada_kawai import kamada_kawai
+from .layouts.arf import arf
 
 
 __all__ = (
@@ -19,4 +20,5 @@ __all__ = (
     bipartite.__name__,
     grid.__name__,
     kamada_kawai.__name__,
+    arf.__name__,
 )

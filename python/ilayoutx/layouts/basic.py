@@ -27,6 +27,9 @@ def line(
     provider = data_providers[nl](network)
     nv = provider.number_of_vertices()
 
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
+
     coords = line_rust(nv, theta)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
@@ -50,6 +53,9 @@ def circle(
     nl = network_library(network)
     provider = data_providers[nl](network)
     nv = provider.number_of_vertices()
+
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
 
     coords = circle_rust(nv, radius, theta)
 
@@ -81,6 +87,9 @@ def random(
     provider = data_providers[nl](network)
     nv = provider.number_of_vertices()
 
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
+
     coords = random_rust(nv, xmin, xmax, ymin, ymax, seed)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
@@ -106,6 +115,9 @@ def shell(
     nl = network_library(network)
     provider = data_providers[nl](network)
     nv = provider.number_of_vertices()
+
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
 
     coords = shell_rust(nv, radius, center, theta)
 
@@ -135,7 +147,11 @@ def spiral(
     provider = data_providers[nl](network)
     nv = provider.number_of_vertices()
 
+    if nv == 0:
+        return pd.DataFrame(columns=["x", "y"])
+
     coords = spiral_rust(nv, radius, center, slope, theta)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
+
     return layout

@@ -1,3 +1,4 @@
+from typing import Sequence
 import importlib
 import numpy as np
 import pandas as pd
@@ -45,9 +46,13 @@ class NetworkXDataProvider(NetworkDataProvider):
             index=index,
         )
 
-    def vertices(self) -> list:
+    def vertices(self) -> Sequence:
         """Get a list of vertices."""
         return list(self.network.nodes())
+
+    def edges(self) -> Sequence:
+        """Get a list of edges."""
+        return list(self.network.edges())
 
     def bipartite(self) -> tuple[set]:
         """Get a bipartite split from a bipartite graph."""
