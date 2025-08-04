@@ -1,4 +1,5 @@
 from typing import Optional
+import numpy as np
 import pandas as pd
 
 from ilayoutx._ilayoutx import (
@@ -40,6 +41,7 @@ def circle(
     network,
     radius: float = 1.0,
     theta: float = 0.0,
+    center: tuple[float, float] = (0.0, 0.0),
 ):
     """Circular layout.
 
@@ -58,6 +60,8 @@ def circle(
         return pd.DataFrame(columns=["x", "y"])
 
     coords = circle_rust(nv, radius, theta)
+
+    coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
     return layout

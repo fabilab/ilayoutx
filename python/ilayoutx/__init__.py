@@ -10,6 +10,7 @@ from .layouts.grid import grid
 from .layouts.kamada_kawai import kamada_kawai
 from .layouts.arf import arf
 from .layouts.forceatlas2 import forceatlas2
+from .layouts.spring import spring
 
 
 __all__ = (
@@ -23,4 +24,5 @@ __all__ = (
     kamada_kawai.__name__,
     arf.__name__,
     forceatlas2.__name__,
+    spring.__name__,
 )

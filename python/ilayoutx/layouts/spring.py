@@ -15,15 +15,15 @@ from ..ingest import (
     data_providers,
 )
 from ..utils import _format_initial_coords
-from ..external.networkx.forceatlas2 import (
-    forceatlas2_layout as fa2_networkx,
+from ..external.networkx.spring import (
+    _fruchterman_reingold as fruchterman_reingold_networkx,
 )
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
 
 
-def forceatlas2(
+def spring(
     network,
     initial_coords: Optional[
         dict[Hashable, tuple[float, float] | list[float]]
@@ -31,18 +31,13 @@ def forceatlas2(
         | np.ndarray
         | pd.DataFrame
     ] = None,
+    optimal_distance: Optional[float] = None,
+    radius: float = 1.0,
     center: Optional[tuple[float, float]] = (0, 0),
-    jitter_tolerance: float = 1.0,
-    scaling_ratio: float = 2.0,
     gravity: float = 1.0,
-    distributed_action: bool = False,
-    strong_gravity: bool = False,
-    mass: Optional[float] = None,
-    size: Optional[float] = None,
-    dissuade_hubs: bool = False,
-    linlog: bool = False,
-    etol: float = 1e-10,
-    max_iter: int = 1000,
+    method="force",
+    etol: float = 1e-4,
+    max_iter: int = 50,
     seed: Optional[int] = None,
 ):
     """ForceAtlas2 algorithm from Gephi.
@@ -92,24 +87,21 @@ def forceatlas2(
         # TODO: allow weights
         adjacency = provider.adjacency_matrix()
 
+        if optimal_distance is None:
+            optimal_distance = np.sqrt(1.0 / nv)
+
         # NOTE: the output is inserted in place into initial_coords
-        fa2_networkx(
-            adjacency=adjacency,
+        fruchterman_reingold_networkx(
+            A=adjacency,
+            k=optimal_distance,
             pos=initial_coords,
-            jitter_tolerance=jitter_tolerance,
-            scaling_ratio=scaling_ratio,
-            gravity=gravity,
-            distributed_action=distributed_action,
-            strong_gravity=strong_gravity,
-            mass=mass,
-            size=size,
-            dissuade_hubs=dissuade_hubs,
-            linlog=linlog,
-            etol=etol,
+            threshold=etol,
             max_iter=max_iter,
             seed=seed,
         )
         coords = initial_coords
+        rmax = np.linalg.norm(coords, axis=1).max()
+        coords *= radius / rmax
 
     coords += np.array(center, dtype=np.float64)
 

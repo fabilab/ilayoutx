@@ -21,9 +21,10 @@ pip install ilayoutx
   - square
   - triangular
 - **Force-directed**:
-  - Kamada-Kawai
+  - spring aka Fruchterman-Reingold
   - ARF
   - Forceatlas2
+  - Kamada-Kawai
 - **Other**:
   - bipartite
   - random

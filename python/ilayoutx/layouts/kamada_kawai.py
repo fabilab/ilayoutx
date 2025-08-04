@@ -44,23 +44,27 @@ def kamada_kawai(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    # Get and set largest finite distance.
-    # Infinite distance stems from non-connected components.
-    dist[np.isinf(dist)] = -1
-    # In case they are all singletons, there is no max finite distance.
-    dist[dist < 0] = max(dist.max(), 0)
+    if nv == 1:
+        coords = np.array([[0.0, 0.0]], dtype=np.float64)
+    else:
+        # Get and set largest finite distance.
+        # Infinite distance stems from non-connected components.
+        dist[np.isinf(dist)] = -1
+        # In case they are all singletons, there is no max finite distance.
+        dist[dist < 0] = max(dist.max(), 0)
 
-    initial_coords = _format_initial_coords(
-        initial_coords,
-        index=index,
-        fallback=lambda: circle(nv, radius=0.5 * np.sqrt(nv)),
-    )
+        initial_coords = _format_initial_coords(
+            initial_coords,
+            index=index,
+            fallback=lambda: circle(nv, radius=0.5 * np.sqrt(nv)),
+        )
 
-    # Solve the kk optimization problem
-    coords = _kamada_kawai_solve(dist, initial_coords, 2)
+        # Solve the kk optimization problem
+        coords = _kamada_kawai_solve(dist, initial_coords, 2)
 
-    # Rescale and center the coordinates
-    coords *= radius / np.abs(coords).max()
+        # Rescale and center the coordinates
+        coords *= radius / np.abs(coords).max()
+
     coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])

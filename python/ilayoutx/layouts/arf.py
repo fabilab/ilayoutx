@@ -7,9 +7,6 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
-    circle,
-)
 from ..ingest import (
     network_library,
     data_providers,
@@ -32,6 +29,7 @@ def arf(
         | pd.DataFrame
     ] = None,
     radius: float = 1.0,
+    center: Optional[tuple[float, float]] = (0, 0),
     spring_strength: float = 1.1,
     etol: float = 1e-6,
     dt: float = 1e-3,
@@ -69,27 +67,33 @@ def arf(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    initial_coords = _format_initial_coords(
-        initial_coords,
-        index=index,
-        fallback=lambda: random_rust(nv, seed=seed),
-    )
+    if nv == 1:
+        coords = np.array([[0.0, 0.0]], dtype=np.float64)
+    else:
+        initial_coords = _format_initial_coords(
+            initial_coords,
+            index=index,
+            fallback=lambda: random_rust(nv, seed=seed),
+        )
 
-    edges = provider.edges()
+        edges = provider.edges()
 
-    # NOTE: the output is inserted in place into initial_coords
-    arf_networkx(
-        nv,
-        index,
-        edges,
-        pos=initial_coords,
-        scaling=radius,
-        a=spring_strength,
-        etol=etol,
-        dt=dt,
-        max_iter=max_iter,
-        seed=seed,
-    )
+        # NOTE: the output is inserted in place into initial_coords
+        arf_networkx(
+            nv,
+            index,
+            edges,
+            pos=initial_coords,
+            scaling=radius,
+            a=spring_strength,
+            etol=etol,
+            dt=dt,
+            max_iter=max_iter,
+            seed=seed,
+        )
+        coords = initial_coords
 
-    layout = pd.DataFrame(initial_coords, index=index, columns=["x", "y"])
+    coords += np.array(center, dtype=np.float64)
+
+    layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
