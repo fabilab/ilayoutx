@@ -11,6 +11,7 @@ from .layouts.kamada_kawai import kamada_kawai
 from .layouts.arf import arf
 from .layouts.forceatlas2 import forceatlas2
 from .layouts.spring import spring
+from .layouts.mds import multidimensional_scaling
 
 
 __all__ = (
@@ -25,4 +26,5 @@ __all__ = (
     arf.__name__,
     forceatlas2.__name__,
     spring.__name__,
+    multidimensional_scaling.__name__,
 )
