@@ -28,6 +28,7 @@ pip install ilayoutx
 - **Other**:
   - bipartite
   - random
+  - multidimensional scaling (MDS)
 
 
 
