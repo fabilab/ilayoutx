@@ -65,3 +65,7 @@ class NetworkXDataProvider(NetworkDataProvider):
         import networkx as nx
 
         return nx.bipartite.sets(self.network)
+
+    def degrees(self) -> pd.Series:
+        """Get the degrees of all vertices."""
+        return pd.Series(dict(self.network.degree()), name="degree")

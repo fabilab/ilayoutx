@@ -13,6 +13,7 @@ def _format_initial_coords(
     ],
     index: list[Hashable],
     fallback: Optional[callable] = None,
+    inplace: bool = False,
 ) -> np.ndarray:
     if initial_coords is None:
         # This should be what the paper suggested. Note that
@@ -23,7 +24,8 @@ def _format_initial_coords(
         if isinstance(initial_coords, dict):
             initial_coords = pd.DataFrame(initial_coords).T.loc[index].values
         elif isinstance(initial_coords, np.ndarray):
-            pass
+            if not inplace:
+                initial_coords = initial_coords.copy()
         elif isinstance(initial_coords, pd.DataFrame):
             initial_coords = initial_coords.loc[index].values
         else:

@@ -43,3 +43,7 @@ class NetworkDataProvider(Protocol):
     def get_vertices(self) -> list:
         """Get a list of vertices."""
         ...
+
+    def degrees(self) -> pd.Series:
+        """Get the degrees of all vertices."""
+        ...

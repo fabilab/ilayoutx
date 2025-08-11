@@ -66,3 +66,7 @@ class IGraphDataProvider(NetworkDataProvider):
         first = np.flatnonzero(~vertex_types)
         second = np.flatnonzero(vertex_types)
         return first, second
+
+    def degrees(self) -> pd.Series:
+        """Get the degrees of all vertices."""
+        return pd.Series(self.network.degree())
