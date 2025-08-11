@@ -25,6 +25,7 @@ pip install ilayoutx
   - ARF
   - Forceatlas2
   - Kamada-Kawai
+  - GEM (graph embedder)
 - **Other**:
   - bipartite
   - random
