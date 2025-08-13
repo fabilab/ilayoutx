@@ -7,9 +7,6 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
-    circle,
-)
 from ..ingest import (
     network_library,
     data_providers,
@@ -18,6 +15,34 @@ from ..utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
+
+
+class Grid:
+    def __init__(
+        self,
+        coords: np.ndarray,
+    ):
+        self.coords = coords
+        self.n = 0
+        self.nv = coords.shape[0]
+        self.center_n = np.zeros(2, dtype=np.float64)
+
+    @property
+    def center(self) -> np.ndarray:
+        return self.center_n / self.n
+
+    def add(
+        self,
+        indices: np.ndarray | int,
+        coords: np.ndarray,
+    ):
+        self.coords[indices] = coords
+        if np.isscalar(indices):
+            self.center_n += coords
+            self.n += 1
+        else:
+            self.center_n += coords.sum(axis=0)
+            self.n += len(indices)
 
 
 def large_graph_layout(
@@ -80,7 +105,7 @@ def large_graph_layout(
         # Compute minimum spanning tree. For now (as igraph), we ignore weights
         # and therefore any spanning tree is fine.
         # FIXME: ensure we get indices back
-        tree_dict = provider.network.bfs(root_idx)
+        tree_dict = provider.bfs(root_idx)
         vertices_bfs = tree_dict["vertices"]
         parents = tree_dict["parents"]
         layer_switch = tree_dict["layer_switch"]
@@ -100,10 +125,14 @@ def large_graph_layout(
 
         force = np.zeros((nv, 2), dtype=np.float64)
 
-        # TODO: create grid
+        # Set up grid
+        grid = Grid(coords)
 
         # Place root
-        coords[root_idx] = 0.0
+        grid.add(
+            root_idx,
+            np.zeros(2),
+        )
 
         eps = 1e-6
         scon = np.sqrt(area / np.pi) / harmonic_sum
@@ -122,7 +151,6 @@ def large_graph_layout(
 
             # Add to the layout the next layer (i.e. starting from the children of root when ilayer == 1)
             for vertex_idx, imp in zip(vertices_layer, impulse):
-                grid_ctr = coords.mean(axis=0)
                 children_idx = vertices_bfs[parents == vertex_idx]
                 # Children of the root are spread evenly in a circle,
                 # for the later layers use rotationally symmetric random sampling via Gaussians
@@ -135,52 +163,54 @@ def large_graph_layout(
                     r[:, 1] = np.sin(thetas)
                     del thetas
                 else:
-                    # NOTE: in igraph, this is uniform. That's wrong as it weighes the diagonals more heavily
-                    # (they have longer arms)
                     r = np.random.normal(
                         loc=0.0, scale=1.0, size=(len(children_idx), 2)
                     )
                     r /= np.linalg.norm(r + 1e-10, axis=1)[:, np.newaxis]
                 r *= scon / ilayer
-                # TODO: add to grid the following
-                # grid_ctr + imp + coords[vertex_idx] + r
+                print("Scon", scon, "r", r)
+
+                # Center + parent + nomalised parent impulse + rotational randomness
+                grid.add(children_idx, grid.center + coords[vertex_idx] + imp + r)
 
             # 2. Determine which edges between vertices in this layer and the next are within the same cell
             #    Those are the ones that have an interaction, the rest is too far away
             #    NOTE: This obviously makes a mess when two adjacent nodes are right across a cell boundary,
             #    but the algorithm seems to ignore this problem. I guess it's quantisation, baby.
-            edges_samecell = ...
+            edges_samecell = []
 
-            # 3. Compute forces along those vetted edges
-            niter = 1
-            maxchange = eps + 1
-            # Iterate forces for this one layer
-            while (niter <= max_iter) and (maxchange > eps):
-                # Learning rate (decreasing 1 -> 0, decelerating)
-                eta = ((max_iter - niter) / max_iter) ** 1.5
-                t = max_delta * eta
+            continue
 
-                force[:] = 0
-                maxchange = 0.0
+            ## 3. Compute forces along those vetted edges
+            # niter = 1
+            # maxchange = eps + 1
+            ## Iterate forces for this one layer
+            # while (niter <= max_iter) and (maxchange > eps):
+            #    # Learning rate (decreasing 1 -> 0, decelerating)
+            #    eta = ((max_iter - niter) / max_iter) ** 1.5
+            #    t = max_delta * eta
 
-                # Attract along vetted, cross-layer edges
-                for vertex_idx, child_idx in edges_samecell:
-                    ... attract
+            #    force[:] = 0
+            #    maxchange = 0.0
 
-                # Repel anything within the cell
-                for vertex_idx in vertices_layer:
-                    ... find nodes nearby
-                    ... repel
+            #    # Attract along vetted, cross-layer edges
+            #    for vertex_idx, child_idx in edges_samecell:
+            #        ... attract
 
-                # Move the nodes
-                coords[...] += force
+            #    # Repel anything within the cell
+            #    for vertex_idx in vertices_layer:
+            #        ... find nodes nearby
+            #        ... repel
 
-                # Record max change
-                # NOTE: the igraph implementation does not include an absolute value here,
-                # that looks kind of sus
-                maxchange = max(maxchange, force.max())
+            #    # Move the nodes
+            #    coords[...] += force
 
-            # Housekeeping
+            #    # Record max change
+            #    # NOTE: the igraph implementation does not include an absolute value here,
+            #    # that looks kind of sus
+            #    maxchange = max(maxchange, force.max())
+
+            ## Housekeeping
 
     coords += np.array(center, dtype=np.float64)
 

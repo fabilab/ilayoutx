@@ -3,6 +3,7 @@ from typing import (
     Sequence,
     Protocol,
 )
+from collections.abc import Hashable
 import pandas as pd
 
 
@@ -50,8 +51,10 @@ class NetworkDataProvider(Protocol):
         """Get the degrees of all vertices."""
         ...
 
-    def minimum_spanning_tree(
-        self, weights: Optional[Sequence[float] | dict[float]] = None
-    ) -> int:
+    def bfs(
+        self,
+        root_idx: Optional[int] = None,
+        root: Optional[Hashable] = None,
+    ) -> dict[str, Sequence[Hashable]]:
         """Get a minimum spanning of the graph."""
         ...
