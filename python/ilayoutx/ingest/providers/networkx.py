@@ -1,4 +1,10 @@
-from typing import Sequence
+from typing import (
+    Sequence,
+    Optional,
+)
+from collections.abc import (
+    Hashable,
+)
 import importlib
 import numpy as np
 import pandas as pd
@@ -69,3 +75,39 @@ class NetworkXDataProvider(NetworkDataProvider):
     def degrees(self) -> pd.Series:
         """Get the degrees of all vertices."""
         return pd.Series(dict(self.network.degree()), name="degree")
+
+    def minimum_spanning_tree(
+        self,
+        root_idx: Optional[int] = None,
+        root: Optional[Hashable] = None,
+    ) -> dict[str, Sequence[Hashable]]:
+        """Get a minimum spanning of the graph.
+
+        Parameters:
+            root_idx: The index of the root node to start the spanning tree from.
+            root: The root node to start the spanning tree from. Either this or the "root_idx" parameter must be provided.
+
+        """
+        import networkx as nx
+
+        if root is None:
+            root = self.vertices()[root_idx]
+
+        vertices = []
+        layer_switch = []
+        parents = []
+        for i, (parent, child) in enumerate(nx.generic_bfs_edges(self.network, root)):
+            if len(vertices) == 0:
+                layer_switch.append(0)
+                vertices.append(parent)
+                parents.append(None)
+            if parent not in parents:
+                layer_switch.append(i + 1)
+            vertices.append(child)
+            parents.append(parent)
+
+        return {
+            "vertices": np.array(vertices),
+            "parents": np.array(parents),
+            "layer_switch": np.array(layer_switch),
+        }

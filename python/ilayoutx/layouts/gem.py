@@ -15,9 +15,6 @@ from ..ingest import (
     data_providers,
 )
 from ..utils import _format_initial_coords
-from ..external.networkx.forceatlas2 import (
-    forceatlas2_layout as fa2_networkx,
-)
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
@@ -37,7 +34,7 @@ def graph_embedder(
     seed: Optional[int] = None,
     inplace: bool = True,
 ):
-    """Classic multidimensional_scaling for connected networks.
+    """Graph embedder (GEM).
 
     Parameters:
         network: The network to layout.
@@ -50,8 +47,6 @@ def graph_embedder(
             that array will be recycled for the output and will be changed in place.
     Returns:
         The layout of the network.
-
-    NOTE: This algorithm is not currently working on graphs that are not connected.
     """
 
     nl = network_library(network)

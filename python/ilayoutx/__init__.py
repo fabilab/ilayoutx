@@ -13,6 +13,7 @@ from .layouts.forceatlas2 import forceatlas2
 from .layouts.spring import spring
 from .layouts.mds import multidimensional_scaling
 from .layouts.gem import graph_embedder
+from .layouts.lgl import large_graph_layout
 
 
 __all__ = (
@@ -29,4 +30,5 @@ __all__ = (
     spring.__name__,
     multidimensional_scaling.__name__,
     graph_embedder.__name__,
+    large_graph_layout.__name__,
 )

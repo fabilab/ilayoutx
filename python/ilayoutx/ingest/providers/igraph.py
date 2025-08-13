@@ -1,4 +1,9 @@
-from typing import Sequence
+from typing import (
+    Sequence,
+)
+from collections.abc import (
+    Hashable,
+)
 import importlib
 import numpy as np
 import pandas as pd
@@ -58,7 +63,7 @@ class IGraphDataProvider(NetworkDataProvider):
         return matrix
 
     def bipartite(self) -> tuple[set]:
-        """Get a bipartite split from a bipartite graph."""
+        """Get a bipartit split from a bipartite graph."""
         is_bipartite, vertex_types = self.network.is_bipartite(return_types=True)
         if not is_bipartite:
             raise ValueError("The graph is not bipartite.")
@@ -70,3 +75,25 @@ class IGraphDataProvider(NetworkDataProvider):
     def degrees(self) -> pd.Series:
         """Get the degrees of all vertices."""
         return pd.Series(self.network.degree())
+
+    def bfs(
+        self,
+        root_idx: Optional[int] = None,
+        root: Optional[Hashable] = None,
+    ) -> dict[str, Sequence[Hashable]]:
+        """Get a minimum spanning of the graph."""
+
+        # For igraph, vertices are integers from 0 upwards anyway
+        if root_idx is None:
+            root_idx = root
+
+        vertices, layer_switch, parents_unordered = self.network.bfs(root_idx)
+
+        # Reorder the parents in the order of the vertices
+        parents = [parents_unordered[v] for v in vertices]
+
+        return {
+            "vertices": np.array(vertices),
+            "parents": np.array(parents),
+            "layer_switch": np.array(layer_switch),
+        }

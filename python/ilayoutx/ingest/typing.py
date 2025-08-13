@@ -1,4 +1,6 @@
 from typing import (
+    Optional,
+    Sequence,
     Protocol,
 )
 import pandas as pd
@@ -46,4 +48,10 @@ class NetworkDataProvider(Protocol):
 
     def degrees(self) -> pd.Series:
         """Get the degrees of all vertices."""
+        ...
+
+    def minimum_spanning_tree(
+        self, weights: Optional[Sequence[float] | dict[float]] = None
+    ) -> int:
+        """Get a minimum spanning of the graph."""
         ...
