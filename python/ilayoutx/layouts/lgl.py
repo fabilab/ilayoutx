@@ -21,8 +21,16 @@ class Grid:
     def __init__(
         self,
         coords: np.ndarray,
+        mins: np.ndarray,
+        maxs: np.ndarray,
+        deltas: np.ndarray,
     ):
         self.coords = coords
+        self.mins = mins
+        self.maxs = maxs
+        self.deltas = deltas
+        self.nsteps = np.ceil((maxs - mins) / deltas).astype(int)
+
         self.n = 0
         self.nv = coords.shape[0]
         self.center_n = np.zeros(2, dtype=np.float64)
@@ -43,6 +51,13 @@ class Grid:
         else:
             self.center_n += coords.sum(axis=0)
             self.n += len(indices)
+
+    def get_cells(
+        self,
+        indices: np.ndarray,
+    ) -> np.ndarray:
+        """Get the cells for the given indices."""
+        coords = self.coords[indices]
 
 
 def large_graph_layout(
@@ -128,7 +143,7 @@ def large_graph_layout(
         # Set up grid
         grid = Grid(coords)
 
-        # Place root
+        # Plae root
         grid.add(
             root_idx,
             np.zeros(2),
@@ -140,6 +155,7 @@ def large_graph_layout(
         # Iterate over layers
         for ilayer in range(1, nlayers):
             max_delta = 1.0 + eps
+            edges_samecell = []
 
             # 1. Place nodes in layer in a circle
             jprev, jcurr = layer_switch[ilayer - 1], layer_switch[ilayer]
@@ -150,7 +166,10 @@ def large_graph_layout(
             impulse /= np.linalg.norm(impulse + 1e-10, axis=1)[:, np.newaxis]
 
             # Add to the layout the next layer (i.e. starting from the children of root when ilayer == 1)
-            for vertex_idx, imp in zip(vertices_layer, impulse):
+            cell_vertices = grid.get_cells(vertices_layer)
+            for vertex_idx, imp, cell_vertex in zip(
+                vertices_layer, impulse, cell_vertices
+            ):
                 children_idx = vertices_bfs[parents == vertex_idx]
                 # Children of the root are spread evenly in a circle,
                 # for the later layers use rotationally symmetric random sampling via Gaussians
@@ -173,11 +192,12 @@ def large_graph_layout(
                 # Center + parent + nomalised parent impulse + rotational randomness
                 grid.add(children_idx, grid.center + coords[vertex_idx] + imp + r)
 
-            # 2. Determine which edges between vertices in this layer and the next are within the same cell
-            #    Those are the ones that have an interaction, the rest is too far away
-            #    NOTE: This obviously makes a mess when two adjacent nodes are right across a cell boundary,
-            #    but the algorithm seems to ignore this problem. I guess it's quantisation, baby.
-            edges_samecell = []
+                # 2. Record which of these children are within the same cell as their parent
+                #    NOTE: This obviously makes a mess when the two nodes are right across a cell boundary,
+                #    since the algorithm seems to ignore this case. I guess it's quantisation, baby.
+                cell_children = grid.get_cells(children_idx)
+                for child_idx in cell_children[cell_children == cell_vertex]:
+                    edges_samecell.append((vertex_idx, child_idx))
 
             continue
 
