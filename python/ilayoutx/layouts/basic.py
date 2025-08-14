@@ -3,6 +3,7 @@ from typing import (
     Sequence,
 )
 import numpy as np
+from scipy.spatial.distance import pdist, squareform, cdist
 import pandas as pd
 
 from ilayoutx._ilayoutx import (
@@ -101,6 +102,8 @@ def random(
     ymin: float = -1.0,
     ymax: float = 1.0,
     seed: Optional[float] = None,
+    sizes: Optional[Sequence[float]] = None,
+    size_maxtries: int = 10,
 ):
     """Random layout, uniform in a box.
 
@@ -111,6 +114,12 @@ def random(
         ymin: Minimum y-coordinate.
         ymax: Maximum y-coordinate.
         seed: Optional random seed for reproducibility.
+        sizes: Sizes of the vertices in data coordinates. If not None, this function will
+            regenerate new random positions for vertices that are closer in Euclidean
+            distance than the sum of their sizes. This is equivalent to assuming that the
+            vertices are circles and their sizes are radii.
+        size_maxtries: Maximum number of attempts to find a valid position for a vertex
+            when sizes are not None.
     Returns:
         A pandas.DataFrame with the layout.
     """
@@ -122,6 +131,29 @@ def random(
         return pd.DataFrame(columns=["x", "y"])
 
     coords = random_rust(nv, xmin, xmax, ymin, ymax, seed)
+    if sizes is not None:
+        sizes = np.array(sizes, dtype=np.float64)
+        pdis = squareform(pdist(coords, metric="euclidean"))
+        radii_sum = sizes[:, None] + sizes[None, :]
+        # Check the conflicts, except for self-conflicts.
+        conflict_i, conflict_j = (pdis < radii_sum).nonzero()
+        tmp_idx = conflict_i != conflict_j
+        conflict_i = conflict_i[tmp_idx]
+        conflict_j = conflict_j[tmp_idx]
+        for i in conflict_i:
+            coords_attempt = random_rust(size_maxtries, xmin, xmax, ymin, ymax, seed)
+            for coords_try in coords_attempt:
+                coords[i] = coords_try
+                pdis[i] = pdis[:, i] = cdist(
+                    coords[i : i + 1], coords, metric="euclidean"
+                )[0]
+                # Obviously, you are always in conflict with yourself.
+                if (pdis[i] >= radii_sum[i]).sum() > 1:
+                    break
+            else:
+                raise ValueError(
+                    "Could not generate a layout compatible with the sizes.",
+                )
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
     return layout
