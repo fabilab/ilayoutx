@@ -1,10 +1,12 @@
-from typing import Optional
+from typing import (
+    Optional,
+    Sequence,
+)
 import numpy as np
 import pandas as pd
 
 from ilayoutx._ilayoutx import (
     line as line_rust,
-    circle as circle_rust,
     random as random_rust,
     shell as shell_rust,
     spiral as spiral_rust,
@@ -42,6 +44,7 @@ def circle(
     radius: float = 1.0,
     theta: float = 0.0,
     center: tuple[float, float] = (0.0, 0.0),
+    sizes: Optional[Sequence[float]] = None,
 ):
     """Circular layout.
 
@@ -49,6 +52,8 @@ def circle(
         network: The network to layout.
         radius: The radius of the circle.
         theta: The angle of the line in radians.
+        center: The center of the circle as a tuple (x, y).
+        sizes: Relative sizes of the 360 angular space to be used for the vertices.
     Returns:
         A pandas.DataFrame with the layout.
     """
@@ -59,7 +64,29 @@ def circle(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    coords = circle_rust(nv, radius, theta)
+    if nv == 1:
+        coords = np.zeros((1, 2), dtype=np.float64)
+    else:
+        if sizes is None:
+            thetas = np.linspace(0, 2 * np.pi, nv, endpoint=False)
+        else:
+            sizes = np.array(sizes, dtype=np.float64)
+            if len(sizes) != nv:
+                raise ValueError(
+                    "sizes must be a sequence of length equal to the number of vertices.",
+                )
+            sizes /= sizes.sum()
+
+            # Vertex 1 is at (radius, 0), then half its wedge and half of the next wedge, etc.
+            sizes[:] = sizes.cumsum()
+            thetas = np.zeros(nv, dtype=np.float64)
+            thetas[1:] = 2 * np.pi * (sizes[:-1] + sizes[1:]) / 2
+
+        thetas += theta
+
+        coords = np.zeros((nv, 2), dtype=np.float64)
+        coords[:, 0] = radius * np.cos(thetas)
+        coords[:, 1] = radius * np.sin(thetas)
 
     coords += np.array(center, dtype=np.float64)
 
