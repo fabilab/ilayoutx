@@ -76,22 +76,33 @@ class NetworkXDataProvider(NetworkDataProvider):
         """Get the degrees of all vertices."""
         return pd.Series(dict(self.network.degree()), name="degree")
 
-    def minimum_spanning_tree(
+    def bfs(
         self,
         root_idx: Optional[int] = None,
         root: Optional[Hashable] = None,
-    ) -> dict[str, Sequence[Hashable]]:
-        """Get a minimum spanning of the graph.
+    ) -> dict[str, np.ndarray[int]]:
+        """Get a breadth-first search spanning tree of the network.
 
         Parameters:
             root_idx: The index of the root node to start the spanning tree from.
             root: The root node to start the spanning tree from. Either this or the "root_idx" parameter must be provided.
 
+        Returns:
+            A dictionary with three keys:
+                - layer_switch: A list of indices where the layer changes.
+                - vertices: A list of vertex indices - as per self.vertices() - in the order they were visited.
+                - parents: A list of parent vertex indices - as per self.vertices() - for each vertex in the order they were visited.
+
         """
         import networkx as nx
 
+        vertex_series = np.Series(
+            np.arange(self.number_of_vertices()),
+            index=self.vertices(),
+        )
+
         if root is None:
-            root = self.vertices()[root_idx]
+            root = vertex_series.index[root_idx]
 
         vertices = []
         layer_switch = []
@@ -99,12 +110,12 @@ class NetworkXDataProvider(NetworkDataProvider):
         for i, (parent, child) in enumerate(nx.generic_bfs_edges(self.network, root)):
             if len(vertices) == 0:
                 layer_switch.append(0)
-                vertices.append(parent)
-                parents.append(None)
+                vertices.append(vertex_series[parent])
+                parents.append(-1)
             if parent not in parents:
                 layer_switch.append(i + 1)
-            vertices.append(child)
-            parents.append(parent)
+            vertices.append(vertex_series[child])
+            parents.append(vertex_series[parent])
 
         return {
             "vertices": np.array(vertices),

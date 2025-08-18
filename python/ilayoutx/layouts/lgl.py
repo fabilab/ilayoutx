@@ -74,7 +74,7 @@ def large_graph_layout(
         | pd.DataFrame
     ] = None,
     center: Optional[tuple[float, float]] = (0, 0),
-    etol: float = 1e-10,
+    etol: float = 1e-6,
     max_iter: int = 1000,
     root: Hashable = None,
     seed: Optional[int] = None,
@@ -116,26 +116,30 @@ def large_graph_layout(
         area = nv**2
         cell_size = np.sqrt(nv)
         max_delta = 1.0 * nv
+        area_side = np.sqrt(area / np.pi)
+        cell_size = int(np.ceil(np.sqrt(nv)))
 
+        # Compute minimum spanning tree. For now (as igraph), we ignore weights
+        # and therefore any spanning tree via bfs is fine. If we want to use
+        # weights, the issue is mostly getting the different providers' API
+        # to align on an output format... just tedious that's all.
         if root is None:
             root_idx = np.random.randint(nv)
         else:
             root_idx = index.index(root)
-
-        # Compute minimum spanning tree. For now (as igraph), we ignore weights
-        # and therefore any spanning tree is fine.
-        # FIXME: ensure we get indices back
         tree_dict = provider.bfs(root_idx)
         vertices_bfs = tree_dict["vertices"]
         parents = tree_dict["parents"]
         layer_switch = tree_dict["layer_switch"]
+        del tree_dict
 
         nlayers = len(layer_switch) - 1
         harmonic_sum = (1.0 / np.linspace(1, nlayers - 1, nlayers - 1)).sum()
 
-        # Set up grid
-        area_side = np.sqrt(area / np.pi)
-        cell_size = int(np.ceil(np.sqrt(nv)))
+        # Force parameters
+        force_k = np.sqrt(area / nv)
+        repel_saddle = area * nv
+        scon = np.sqrt(area / np.pi) / harmonic_sum
 
         # Default is a random layout scaled by the area of the grid
         initial_coords = _format_initial_coords(
@@ -156,20 +160,15 @@ def large_graph_layout(
 
         force = np.zeros((nv, 2), dtype=np.float64)
 
-        # Plae root
+        # Place root
         grid.add(
             root_idx,
             np.zeros(2),
         )
 
-        eps = 1e-6
-        force_k = np.sqrt(area / nv)
-        repel_saddle = area * nv
-        scon = np.sqrt(area / np.pi) / harmonic_sum
-
         # Iterate over layers
         for ilayer in range(1, nlayers):
-            max_delta = 1.0 + eps
+            max_delta = 1.0 + etol
             edges_samecell = []
 
             # 1. Place nodes in layer in a circle
@@ -215,13 +214,13 @@ def large_graph_layout(
                     edges_samecell.append((vertex_idx, child_idx))
 
             edges_samecell = np.array(edges_samecell)
-            print(edges_samecell)
 
             # 3. Compute forces along those vetted edges
-            niter = 1
-            maxchange = eps + 1
+            maxchange = etol + 1
             # Iterate forces for this one layer
-            while (niter <= max_iter) and (maxchange > eps):
+            for niter in range(1, max_iter + 1):
+                print(niter, max_iter, maxchange, etol)
+
                 # Learning rate (decreasing 1 -> 0, decelerating)
                 eta = ((max_iter - niter) / max_iter) ** 1.5
                 t = max_delta * eta
@@ -261,7 +260,7 @@ def large_graph_layout(
                         coords_cell[:, np.newaxis, :] - coords_cell[np.newaxis, :, :]
                     )
                     dist2_cell = np.sum(delta_cell**2, axis=-1)
-                    dist2_cell = np.maximum(dist2_cell, eps * eps)
+                    dist2_cell = np.maximum(dist2_cell, etol * etol)
                     delta_cell /= np.sqrt(dist2_cell)[:, :, np.newaxis]
                     force_abs = force_k**2 * (
                         1.0 / np.sqrt(dist2_cell) - dist2_cell / repel_saddle
@@ -294,8 +293,10 @@ def large_graph_layout(
                     np.add.at(force, mg0, delta_cell * force_abs[:, None])
                     np.add.at(force, mg1, -delta_cell * force_abs[:, None])
 
-                # Move the nodes
-                # FIXME: there is something about a rescaling
+                # Move the nodes, with force clipped in absolute value
+                force_abs = np.linalg.norm(force, axis=1)
+                idx_exceed = force_abs > t
+                force[idx_exceed] *= t / force_abs[idx_exceed, None]
                 coords[:] += force
 
                 # Record max change
@@ -303,7 +304,9 @@ def large_graph_layout(
                 # that looks kind of sus
                 maxchange = max(maxchange, force.max())
 
-            ## Housekeeping
+                # Housekeeping
+                if maxchange <= etol:
+                    break
 
     coords += np.array(center, dtype=np.float64)
 

@@ -81,8 +81,20 @@ class IGraphDataProvider(NetworkDataProvider):
         self,
         root_idx: Optional[int] = None,
         root: Optional[Hashable] = None,
-    ) -> dict[str, Sequence[Hashable]]:
-        """Get a minimum spanning of the graph."""
+    ) -> dict[str, np.ndarray[int]]:
+        """Get a breadth-first search spanning tree of the network.
+
+        Parameters:
+            root_idx: The index of the root node to start the spanning tree from.
+            root: The root node to start the spanning tree from. Either this or the "root_idx" parameter must be provided.
+
+        Returns:
+            A dictionary with three keys:
+                - layer_switch: A list of indices where the layer changes.
+                - vertices: A list of vertex indices - as per self.vertices() - in the order they were visited.
+                - parents: A list of parent vertex indices - as per self.vertices() - for each vertex in the order they were visited.
+
+        """
 
         # For igraph, vertices are integers from 0 upwards anyway
         if root_idx is None:
