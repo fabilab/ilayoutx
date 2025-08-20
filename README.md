@@ -14,21 +14,32 @@ pip install ilayoutx
 ## Layouts
 - **Geometric**:
   - line
-  - circle
+  - circle (supports vertex sizes)
   - shell
   - spiral (WIP)
+
 - **Grid or lattice**:
   - square
   - triangular
+
 - **Force-directed**:
   - spring aka Fruchterman-Reingold
   - ARF
   - Forceatlas2
   - Kamada-Kawai
   - GEM (graph embedder)
+  - LGL (buggy)
+
+- **Machine learning**:
+  - (TODO: UMAP)
+
+- **Tree-like**:
+  - (TODO: Reingold-Tilford)
+  - (TODO: Sugiyama)
+
 - **Other**:
   - bipartite
-  - random
+  - random (supports vertex sizes)
   - multidimensional scaling (MDS)
 
 
