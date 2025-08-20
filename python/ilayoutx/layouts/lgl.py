@@ -64,6 +64,38 @@ class Grid:
         cells = np.floor((coords - self.mins) / self.deltas).astype(int)
         return cells
 
+    def get_idx_neighboring_cells(
+        self,
+        indices: np.ndarray,
+        cell: tuple[int, int] | np.ndarray,
+        left: bool = True,
+        right: bool = True,
+        top: bool = True,
+        bottom: bool = True,
+    ) -> np.ndarray:
+        """Determine which of the indices are in a cell neighboring the given cell.
+
+
+        NOTE: I think igraph only considers the cell itself, right, and top. Not
+        sure what the reason might be.
+        """
+        cells_indices = self.get_cells(indices)
+
+        # Start with the cell itself
+        samecell_idx = (cells_indices == cell).all(axis=1)
+
+        # Neighboring cells
+        if right:
+            samecell_idx |= (cells_indices == cell + [1, 0]).all(axis=1)
+        if top:
+            samecell_idx |= (cells_indices == cell + [0, 1]).all(axis=1)
+        if left:
+            samecell_idx |= (cells_indices == cell + [-1, 0]).all(axis=1)
+        if bottom:
+            samecell_idx |= (cells_indices == cell + [0, -1]).all(axis=1)
+
+        return indices[samecell_idx]
+
 
 def large_graph_layout(
     network,
@@ -208,8 +240,10 @@ def large_graph_layout(
                 # 2. Record which of these children are within the same cell as their parent
                 #    NOTE: This obviously makes a mess when the two nodes are right across a cell boundary,
                 #    since the algorithm seems to ignore this case. I guess it's quantisation, baby.
-                cell_children = grid.get_cells(children_idx)
-                samecell_idx = children_idx[(cell_children == cell_vertex).all(axis=1)]
+                samecell_idx = grid.get_idx_neighboring_cells(
+                    children_idx,
+                    cell_vertex,
+                )
                 for child_idx in samecell_idx:
                     edges_samecell.append((vertex_idx, child_idx))
 
