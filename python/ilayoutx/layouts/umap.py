@@ -130,6 +130,9 @@ def _apply_forces(
     negative_sampling_rate: float,
     next_sampling_epoch: np.ndarray,
 ):
+    dist2_min_attr = 1e-8
+    dist2_min_rep = 1e-4
+
     # Linear simulated annealing
     learning_rate = 1 - n_epoch / n_epochs
 
@@ -159,16 +162,30 @@ def _apply_forces(
     # embedding would break this decision, we leave it for now.
 
     # Attractive force (cross-entropy)
-    force_attr = ...
-    coords[idx_source, 0] += force_attr * <constants>
-    coords[idx_target, 0] -= force_attr * <constants>
+    delta = coords[idx_source] - coords[idx_target]
+    dist2 = (delta * delta).sum(axis=1)
+    force_attr = -2 * a * b * dist2 ** (b - 1) / (1.0 + a * dist2**b)
+    # Forfeit pairs that are already basically on top of one another
+    force_attr[dist2 < dist2_min_attr] = 0
+    coords[idx_source] += force_attr * delta * learning_rate
+    coords[idx_target] -= force_attr * delta * learning_rate
 
     # Repulsive force via negative samlping (cross-entropy)
-    idx_negative_samples = ...
-    force_rep = ...
-    coords[idx_negative_samples] += force_rep * <constants, other ones>
-
-    # No need to return, the coords are changed in place.
+    # FIXME: improve this to the actual number
+    n_negative_samples = negative_sampling_rate * np.ones(
+        len(sym_edge_df), dtype=np.int64
+    )
+    n_ns_max = max(n_negative_samples)
+    for ineg in range(1, n_ns_max + 1):
+        idx_negative_edges = n_negative_samples >= ineg
+        # FIXME: dist2 for these pairs etc.
+        force_rep = (
+            2
+            * b
+            / (dist2_min_rep + dist2[idx_negative_edges])
+            / (1.0 + a * dist2[idx_negative_edges] ** b)
+        )
+        coords[idx_negative_edges] += force_rep * delta * learning_rate
 
 
 def _stochastic_gradient_descent(
@@ -199,7 +216,7 @@ def _stochastic_gradient_descent(
     """
 
     ne = len(sym_edge_df)
-    next_sampling_epoch = np.zeros(ne, dtype=np.int64)
+    next_sampling_epoch = np.zeros(ne)
 
     # For small graphs, explicit avoidance of repulsion between neighbors
     # is not that costly and more accurate than blind negative sampling.
@@ -220,7 +237,6 @@ def _stochastic_gradient_descent(
             b,
             n_epoch,
             n_epochs,
-            learning_rate,
             avoid_neighbors_repulsion,
             negative_sampling_rate,
             next_sampling_epoch,
