@@ -31,7 +31,7 @@ pip install ilayoutx
   - LGL (buggy)
 
 - **Machine learning**:
-  - (TODO: UMAP)
+  - UMAP: probably somewhat buggy
 
 - **Tree-like**:
   - (TODO: Reingold-Tilford)
