@@ -132,6 +132,7 @@ def _apply_forces(
 ):
     dist2_min_attr = 1e-8
     dist2_min_rep = 1e-4
+    nv = len(coords)
 
     # Linear simulated annealing
     learning_rate = 1 - n_epoch / n_epochs
@@ -167,25 +168,50 @@ def _apply_forces(
     force_attr = -2 * a * b * dist2 ** (b - 1) / (1.0 + a * dist2**b)
     # Forfeit pairs that are already basically on top of one another
     force_attr[dist2 < dist2_min_attr] = 0
-    coords[idx_source] += force_attr * delta * learning_rate
-    coords[idx_target] -= force_attr * delta * learning_rate
+    coords[idx_source] += force_attr[:, None] * delta * learning_rate
+    coords[idx_target] -= force_attr[:, None] * delta * learning_rate
 
     # Repulsive force via negative samlping (cross-entropy)
     # FIXME: improve this to the actual number
     n_negative_samples = negative_sampling_rate * np.ones(
-        len(sym_edge_df), dtype=np.int64
+        idx_edges.sum(), dtype=np.int64
     )
+    # NOTE: This is nifty little trick by which we do not iterate directly
+    # over the edges. To vectorise aggressively, we iterate over the observed
+    # number of negative samples needed and push the same vertex multiple times.
+    # This has somewhat fixed complexity that barely depends on the number of
+    # edges - as far as Python is concerned. n_ns_max is basically the inverse
+    # of the smallest weight in the sym_edge list *that was sampled this epoch*.
+    # In other words, if you happen to sample a rare weight, here's where you
+    # pay for it, but the cost is almost independent on the number of edges.
+    # TODO: A more straightforward approach would be to do this in Rust, as a
+    # straightup nested for loop (edges and negative samples for each edge).
     n_ns_max = max(n_negative_samples)
     for ineg in range(1, n_ns_max + 1):
+        # Which of the edges require an additional negative sample.
         idx_negative_edges = n_negative_samples >= ineg
-        # FIXME: dist2 for these pairs etc.
-        force_rep = (
-            2
-            * b
-            / (dist2_min_rep + dist2[idx_negative_edges])
-            / (1.0 + a * dist2[idx_negative_edges] ** b)
-        )
-        coords[idx_negative_edges] += force_rep * delta * learning_rate
+
+        # Sample a random vertex for each edge that requires a negative sample.
+        # Repulsion for BOTH source and target from that vertex will be applied.
+        idx_negative_vertices = np.random.randint(nv, size=idx_negative_edges.sum())
+        coords_negative = coords[idx_negative_vertices]
+        idxs_focal = {"source": idx_source, "target": idx_target}
+        for name_focal, idx_focal in idxs_focal.items():
+            idx_focal_neg = idx_focal[idx_negative_edges]
+            coords_focal = coords[idx_focal_neg]
+            delta_neg = coords_focal - coords_negative
+            dist2_neg = (delta_neg * delta_neg).sum(axis=1)
+            force_rep = 2 * b / (dist2_min_rep + dist2_neg) / (1.0 + a * dist2**b)
+            # Shorten self-repulsion to zero
+            force_rep[idx_focal == idx_negative_vertices] = 0
+            # Shorten repulsion of neighbors to zero for small graphs
+            if avoid_neighbors_repulsion:
+                name_other = "target" if name_focal == "source" else "source"
+                idx_other = idxs_focal[name_other]
+                for ifr, (i, j) in enumerate(zip(idx_focal, idx_negative_vertices)):
+                    if ((idx_focal == i) & (idx_other == j)).sum() > 0:
+                        force_rep[ifr] = 0
+            coords[idx_focal_neg] += force_rep[:, None] * delta_neg * learning_rate
 
 
 def _stochastic_gradient_descent(
