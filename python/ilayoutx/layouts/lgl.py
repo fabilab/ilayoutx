@@ -111,7 +111,7 @@ def large_graph_layout(
     root: Hashable = None,
     seed: Optional[int] = None,
     inplace: bool = True,
-):
+) -> pd.DataFrame:
     """Large graph layout (adapted) for connected networks.
 
     Parameters:

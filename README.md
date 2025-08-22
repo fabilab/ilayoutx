@@ -28,14 +28,14 @@ pip install ilayoutx
   - Forceatlas2
   - Kamada-Kawai
   - GEM (graph embedder)
-  - LGL (buggy)
 
 - **Machine learning**:
   - UMAP: probably somewhat buggy
 
 - **Tree-like**:
-  - (TODO: Reingold-Tilford)
+  - LGL (buggy)
   - (TODO: Sugiyama)
+  - (TODO: Reingold-Tilford)
 
 - **Other**:
   - bipartite
