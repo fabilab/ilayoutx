@@ -1,11 +1,12 @@
 """Rectangular packing for disconnected graphs or sets of graphs."""
 
 from typing import Sequence
+import numpy as np
 import pandas as pd
-from rpack import pack
+import circlify
 
 
-def rectangular_packing(
+def circular_packing(
     layouts: Sequence[pd.DataFrame],
     padding: float = 10.0,
     center: bool = True,
@@ -28,32 +29,32 @@ def rectangular_packing(
     """
     # TODO: deal with empty layouts
 
-    largest = 0
-    dimensions = []
-    xymins = []
+    centers = []
+    areas = []
     for layout in layouts:
         xmin, ymin = layout.values.min()
         xmax, ymax = layout.values.max()
-        width = (xmax - xmin) + 0.5 * padding
-        height = (ymax - ymin) + 0.5 * padding
-        largest = max(largest, width, height)
-        dimensions.append((width, height))
-        xymins.append((xmin, ymin))
+        xctr = 0.5 * (xmin + xmax)
+        yctr = 0.5 * (ymin + ymax)
+        ctr = np.array([xctr, yctr])
+        centers.append(ctr)
+        r2max = ((layout[["x", "y"]].values - ctr) ** 2).sum(axis=1).max()
+        areas.append(r2max)
 
-    # rpack requires integers... scale to a reasonable default
-    scaling = 1000.0 / largest
-    dimensions = [(int(width * scaling), int(height * scaling)) for width, height in dimensions]
+    # NOTE: The resulting circles have areas *proportional* to the input areas,
+    # we have to rescale them to the original areas.
+    circles = circlify.circlify(areas, show_enclosure=False)
 
-    lower_lefts = pack(dimensions)
+    scaling = areas[0] / circles[0].radius ** 2
+
     new_layouts = []
-    for layout_id, (layout, (llx, lly), (xmin, ymin)) in enumerate(
-        zip(layouts, lower_lefts, xymins)
-    ):
-        llx = float(llx) / scaling
-        lly = float(lly) / scaling
+    for layout_id, (layout, ctr, circ) in enumerate(zip(layouts, centers, circles)):
+        xctr = circ.x * scaling
+        yctr = circ.y * scaling
+
         new_layout = layout.copy()
-        new_layout["x"] = new_layout["x"] - xmin + llx
-        new_layout["y"] = new_layout["y"] - ymin + lly
+        new_layout["x"] += xctr - ctr[0]
+        new_layout["y"] += yctr - ctr[1]
         if concatenate:
             new_layout["id"] = new_layout.index
             new_layout["layout_id"] = layout_id

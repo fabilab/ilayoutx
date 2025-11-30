@@ -17,6 +17,7 @@ dynamic = ["version"]
 dependencies = [
   "numpy>=2.0.0",
   "rectangle-packer>=2.0.0",
+  "circlify>=0.15.0",
   # NOTE: grandalf implements FR and Sugiyama, both of which we plan to take over here
   "grandalf>=0.8",
 ]
