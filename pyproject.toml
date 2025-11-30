@@ -4,15 +4,53 @@ build-backend = "maturin"
 
 [project]
 name = "ilayoutx"
-requires-python = ">=3.11"
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+description = "Universal library for network node layout and edge routing."
+authors = [
+  {name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au"}
 ]
+maintainers = [
+  {name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au"}
+]
+requires-python = ">=3.11"
+readme = "README.md"
 dynamic = ["version"]
+dependencies = [
+  "numpy>=2.0.0",
+  "rectangle-packer>=2.0.0",
+  # NOTE: grandalf implements FR and Sugiyama, both of which we plan to take over here
+  "grandalf>=0.8",
+]
+
+license = {text = "MIT"}
+license-files = ["LICEN[CS]E.*"]
+keywords = ["network", "graph", "layout", "routing"]
+classifiers = [
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Topic :: Scientific/Engineering :: Visualization",
+  "Topic :: System :: Networking",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/fabilab/ilayoutx"
+Documentation = "https://readthedocs.org/ilayoutx"
+Repository = "https://github.com/fabilab/ilayoutx.git"
+"Bug Tracker" = "https://github.com/fabilab/ilayoutx/issues"
+Changelog = "https://github.com/fabilab/ilayoutx/blob/main/CHANGELOG.md"
 
 [tool.maturin]
 module-name = "ilayoutx._ilayoutx"
 python-source = "python"
 features = ["pyo3/extension-module"]
+
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["gallery/**/plot_*.py", "gallery/**/data/*"]
