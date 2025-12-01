@@ -16,6 +16,7 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
   "numpy>=2.0.0",
+  "pandas>=2.0.0",
   "scipy>=1.11.0",
   "rectangle-packer>=2.0.0",
   "circlify>=0.15.0",
