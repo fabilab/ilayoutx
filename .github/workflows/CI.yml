@@ -59,8 +59,9 @@ jobs:
           set -e
           python3 -m venv .venv
           source .venv/bin/activate
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install -U pip
           pip install --group test
+          pip install ilayoutx --find-links dist --force-reinstall
           pytest
       - name: pytest
         if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
@@ -120,8 +121,9 @@ jobs:
             apk add py3-pip py3-virtualenv
             python3 -m virtualenv .venv
             source .venv/bin/activate
-            pip install ilayoutx --no-index --find-links dist --force-reinstall
+            pip install -U pip
             pip install --group test
+            pip install ilayoutx --no-index --find-links dist --force-reinstall
             pytest
       - name: pytest
         if: ${{ !startsWith(matrix.platform.target, 'x86') }}
@@ -136,6 +138,7 @@ jobs:
             set -e
             python3 -m virtualenv .venv
             source .venv/bin/activate
+            pip install -U pip
             pip install --group test
             pip install ilayoutx --find-links dist --force-reinstall
             pytest
@@ -173,8 +176,9 @@ jobs:
           set -e
           python3 -m venv .venv
           source .venv/Scripts/activate
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install -U pip
           pip install --group test
+          pip install ilayoutx --find-links dist --force-reinstall
           pytest
 
   macos:
@@ -207,8 +211,9 @@ jobs:
           set -e
           python3 -m venv .venv
           source .venv/bin/activate
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install -U pip
           pip install --group test
+          pip install ilayoutx --find-links dist --force-reinstall
           pytest
 
   sdist:
