@@ -92,7 +92,7 @@ pub fn random(
 /// Shell layout
 ///
 /// Parameters:
-///     nlist (list of lists): Each list contains the vertices to be laid out in that shell,
+///     nlist (list of integers): Each list contains the vertices to be laid out in that shell,
 ///         starting from the innermost shell. If the first shell has only one vertex, it
 ///         will be placed at the origin.
 ///     radius (float): The radius of the outermost shell.
@@ -104,13 +104,13 @@ pub fn random(
 #[pyo3(signature = (nlist, radius=1.0, center=(0.0, 0.0), theta=0.0))]
 pub fn shell(
     py: Python<'_>,
-    nlist: Vec<Vec<usize>>,
+    nlist: Vec<usize>,
     radius: f64,
     center: (f64, f64),
     theta: f64,
 ) -> PyResult<Bound<'_, PyArray2<f64>>> {
     let theta = theta.to_radians();
-    let n = nlist.iter().map(|v| v.len()).sum::<usize>();
+    let n = nlist.iter().sum();
     let nshells = nlist.len();
     let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
 
@@ -118,9 +118,11 @@ pub fn shell(
         let mut r: f64 = 0.0;
         let mut i: usize = 0;
         let mut rshell: f64 = 0.0;
-        for (ish, shell) in nlist.iter().enumerate() {
-            if ish == 0 {
-                if shell.len() > 1 {
+        let mut innermost = true;
+        for nshell in nlist.iter() {
+            if innermost {
+                innermost = false;
+                if *nshell > 1 {
                     rshell = radius / (nshells as f64);
                     r += rshell;
                 } else if nshells > 1 {
@@ -130,8 +132,8 @@ pub fn shell(
                     rshell = radius;
                 }
             }
-            let alpha = 2.0 * std::f64::consts::PI / shell.len() as f64;
-            for (j, _) in shell.iter().enumerate() {
+            let alpha = 2.0 * std::f64::consts::PI / *nshell as f64;
+            for j in 0..*nshell {
                 let angle = theta + alpha * j as f64;
                 unsafe {
                     *coords.get_mut([i, 0]).unwrap() = center.0 + r * angle.cos();

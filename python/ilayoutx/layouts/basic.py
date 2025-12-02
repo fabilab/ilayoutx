@@ -2,6 +2,9 @@ from typing import (
     Optional,
     Sequence,
 )
+from collections.abc import (
+    Hashable,
+)
 import numpy as np
 from scipy.spatial.distance import pdist, squareform, cdist
 import pandas as pd
@@ -159,6 +162,7 @@ def random(
 
 def shell(
     network,
+    nlist: Sequence[Sequence[Hashable]],
     radius: float = 1.0,
     center: tuple[float, float] = (0.0, 0.0),
     theta: float = 0.0,
@@ -167,6 +171,7 @@ def shell(
 
     Parameters:
         network: The network to layout.
+        nlist: List of lists of nodes in each shell.
         radius: The radius of the shell.
         center: The center of the shell as a tuple (x, y).
         theta: The angle of the shell in radians.
@@ -178,11 +183,21 @@ def shell(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=float)
 
-    coords = shell_rust(nv, radius, center, np.degrees(theta))
+    nnodes_by_shell = [len(x) for x in nlist]
+    coords = shell_rust(nnodes_by_shell, radius, center, np.degrees(theta))
+    nodes = []
+    for nodes_shell in nlist:
+        nodes.extend(list(nodes_shell))
 
-    layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
+    layout = pd.DataFrame(coords, index=nodes, columns=["x", "y"])
+
+    # NOTE: reorder to match initial nodes
+    print(provider.vertices())
+    print(layout.index)
+    layout = layout.loc[provider.vertices()]
+
     return layout
 
 
