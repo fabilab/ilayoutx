@@ -70,11 +70,12 @@ jobs:
           arch: ${{ matrix.platform.target }}
           distro: ubuntu22.04
           githubToken: ${{ github.token }}
+          # NOTE: cannot update pip this way because it comes from Ubuntu and is too old
+          # for --group test, so we manually select a couple key packages for testing
           install: |
             apt-get update
             apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip
-            pip3 install --group test
+            pip3 install networkx pytest
           run: |
             set -e
             pip3 install ilayoutx --find-links dist --force-reinstall
