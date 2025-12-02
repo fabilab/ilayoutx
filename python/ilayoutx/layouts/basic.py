@@ -34,7 +34,7 @@ def line(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    coords = line_rust(nv, theta)
+    coords = line_rust(nv, np.degrees(theta))
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
     return layout
@@ -144,9 +144,7 @@ def random(
             coords_attempt = random_rust(size_maxtries, xmin, xmax, ymin, ymax, seed)
             for coords_try in coords_attempt:
                 coords[i] = coords_try
-                pdis[i] = pdis[:, i] = cdist(
-                    coords[i : i + 1], coords, metric="euclidean"
-                )[0]
+                pdis[i] = pdis[:, i] = cdist(coords[i : i + 1], coords, metric="euclidean")[0]
                 # Obviously, you are always in conflict with yourself.
                 if (pdis[i] >= radii_sum[i]).sum() > 1:
                     break
@@ -182,7 +180,7 @@ def shell(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    coords = shell_rust(nv, radius, center, theta)
+    coords = shell_rust(nv, radius, center, np.degrees(theta))
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
     return layout
@@ -213,7 +211,7 @@ def spiral(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    coords = spiral_rust(nv, radius, center, slope, theta)
+    coords = spiral_rust(nv, radius, center, slope, np.degrees(theta))
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
 
