@@ -177,7 +177,7 @@ jobs:
           set -e
           python3 -m venv .venv
           source .venv/Scripts/activate
-          pip install -U pip
+          python.exe -m pip install --upgrade pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
           pytest
