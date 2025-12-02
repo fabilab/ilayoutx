@@ -123,7 +123,7 @@ jobs:
             python3 -m virtualenv .venv
             source .venv/bin/activate
             pip install -U pip
-            pip install ilayoutx --no-index --find-links dist
+            pip install ilayoutx --find-links dist
             #pip install ilayoutx --no-index --find-links dist --force-reinstall
             pip install --group test
             pytest
