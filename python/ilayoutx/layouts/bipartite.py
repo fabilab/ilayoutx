@@ -1,6 +1,11 @@
 from typing import (
+    Sequence,
     Optional,
 )
+from collections.abc import (
+    Hashable,
+)
+
 import numpy as np
 import pandas as pd
 
@@ -16,11 +21,13 @@ def bipartite(
     distance: float = 1.0,
     theta: float = 0.0,
 ):
-    """Line layout.
+    """Bipartite layout.
 
     Parameters:
         network: The network to layout.
-        theta: The angle of the line in radians.
+        first: Sequece or set of node ids in the first partition. If None, the underlying network
+            library will attempt to discover the bipartite partitions.
+        theta: Rotation angle in radians.
     Returns:
         A pandas.DataFrame with the layout.
     """
@@ -38,7 +45,50 @@ def bipartite(
 
     n1 = len(first)
     n2 = len(second)
-    coords = bipartite_rust(n1, n2, distance, theta)
+    coords = bipartite_rust(n1, n2, distance, np.degrees(theta))
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
+
+
+def multipartite(
+    network,
+    nlist: Sequence[Sequence[Hashable]],
+    distance: float = 1.0,
+    theta: float = 0.0,
+):
+    """Multipartite layout.
+
+    Parameters:
+        network: The network to layout.
+        nlist: List of lists of nodes in each layer.
+        theta: Rotation angle in radians.
+    Returns:
+        A pandas.DataFrame with the layout.
+    """
+
+    nl = network_library(network)
+    provider = data_providers[nl](network)
+    nv = provider.number_of_vertices()
+
+    nodes = []
+    i = 0
+    coords = np.zeros((nv, 2), dtype=float)
+    for ilayer, nodes_layer in enumerate(nlist):
+        nlayer = len(nodes_layer)
+        if nlayer == 0:
+            continue
+        nodes.extend(list(nodes_layer))
+        offset = -0.5 * (nlayer - 1)
+
+        coords[i : i + nlayer, 0] = ilayer * distance
+        coords[i : i + nlayer, 1] = np.arange(nlayer, dtype=float) + offset
+        i += nlayer
+
+    # Rotate coordinates
+    rotation_matrix = np.array(
+        [
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)],
+        ]
+    )

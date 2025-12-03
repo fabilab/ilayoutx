@@ -31,9 +31,16 @@ def rectangular_packing(
     largest = 0
     dimensions = []
     xymins = []
-    for layout in layouts:
-        xmin, ymin = layout.values.min()
-        xmax, ymax = layout.values.max()
+    index_map = {}
+    j = 0
+    for i, layout in enumerate(layouts):
+        if len(layout) == 0:
+            continue
+        index_map[j] = i
+        j += 1
+
+        xmin, ymin = layout[["x", "y"]].values.min(axis=0)
+        xmax, ymax = layout[["x", "y"]].values.max(axis=0)
         width = (xmax - xmin) + 0.5 * padding
         height = (ymax - ymin) + 0.5 * padding
         largest = max(largest, width, height)
@@ -44,11 +51,13 @@ def rectangular_packing(
     scaling = 1000.0 / largest
     dimensions = [(int(width * scaling), int(height * scaling)) for width, height in dimensions]
 
+    print(dimensions)
     lower_lefts = pack(dimensions)
     new_layouts = []
-    for layout_id, (layout, (llx, lly), (xmin, ymin)) in enumerate(
-        zip(layouts, lower_lefts, xymins)
-    ):
+    for j, ((llx, lly), (xmin, ymin)) in enumerate(zip(lower_lefts, xymins)):
+        layout_id = index_map[j]
+        layout = layouts[layout_id]
+
         llx = float(llx) / scaling
         lly = float(lly) / scaling
         new_layout = layout.copy()
