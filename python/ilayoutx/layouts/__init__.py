@@ -12,6 +12,7 @@ from .grid import grid
 from .kamada_kawai import kamada_kawai
 from .arf import arf
 from .forceatlas2 import forceatlas2
+from .geometric import geometric
 from .spring import spring
 from .mds import multidimensional_scaling
 from .gem import graph_embedder
@@ -30,6 +31,7 @@ __all__ = (
     kamada_kawai.__name__,
     arf.__name__,
     forceatlas2.__name__,
+    geometric.__name__,
     spring.__name__,
     multidimensional_scaling.__name__,
     graph_embedder.__name__,

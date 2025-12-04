@@ -1,3 +1,5 @@
+"""Basic layouts: line, circle, random, shell, spiral."""
+
 from typing import (
     Optional,
     Sequence,
