@@ -7,7 +7,10 @@ from .basic import (
     spiral,
     random,
 )
-from .bipartite import bipartite
+from .bipartite import (
+    bipartite,
+    multipartite,
+)
 from .grid import grid
 from .kamada_kawai import kamada_kawai
 from .arf import arf
@@ -27,6 +30,7 @@ __all__ = (
     spiral.__name__,
     random.__name__,
     bipartite.__name__,
+    multipartite.__name__,
     grid.__name__,
     kamada_kawai.__name__,
     arf.__name__,

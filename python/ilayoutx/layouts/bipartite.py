@@ -20,7 +20,7 @@ def bipartite(
     first: Optional[set | list | tuple | frozenset | np.ndarray | pd.Index] = None,
     distance: float = 1.0,
     theta: float = 0.0,
-):
+) -> pd.DataFrame:
     """Bipartite layout.
 
     Parameters:
@@ -56,7 +56,8 @@ def multipartite(
     nlist: Sequence[Sequence[Hashable]],
     distance: float = 1.0,
     theta: float = 0.0,
-):
+    ycenter: bool = False,
+) -> pd.DataFrame:
     """Multipartite layout.
 
     Parameters:
@@ -79,7 +80,10 @@ def multipartite(
         if nlayer == 0:
             continue
         nodes.extend(list(nodes_layer))
-        offset = -0.5 * (nlayer - 1)
+        if ycenter:
+            offset = -0.5 * (nlayer - 1)
+        else:
+            offset = 0.0
 
         coords[i : i + nlayer, 0] = ilayer * distance
         coords[i : i + nlayer, 1] = np.arange(nlayer, dtype=float) + offset
@@ -92,3 +96,7 @@ def multipartite(
             [np.sin(theta), np.cos(theta)],
         ]
     )
+    coords = coords @ rotation_matrix.T
+
+    layout = pd.DataFrame(coords, index=nodes, columns=["x", "y"])
+    return layout
