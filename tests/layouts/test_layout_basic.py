@@ -1,9 +1,11 @@
+"""Test basic layouts."""
+
 import pytest
 import numpy as np
 
 import ilayoutx as ilx
 
-networkx = pytest.importorskip("networkx")
+nx = pytest.importorskip("networkx")
 
 
 linedata = [
@@ -54,7 +56,7 @@ linedata = [
 def test_line(helpers, theta, expected):
     """Test line layout."""
 
-    g = networkx.path_graph(5)
+    g = nx.path_graph(5)
     layout = ilx.layouts.line(g, theta=theta)
 
     expected = np.array(expected)
@@ -94,7 +96,7 @@ circledata = [
 @pytest.mark.parametrize("theta,expected", circledata)
 def test_circle(helpers, theta, expected):
     """Test circle layout."""
-    g = networkx.path_graph(4)
+    g = nx.path_graph(4)
     layout = ilx.layouts.circle(g, theta=theta)
 
     expected = np.array(expected)
@@ -148,7 +150,7 @@ def test_shell(helpers, theta, nodes_by_shell, expected):
     # to spice things up
     if (len(nodes) > 0) and (isinstance(nodes[0], int)):
         nodes.sort()
-    g = networkx.Graph()
+    g = nx.Graph()
     g.add_nodes_from(nodes)
     layout = ilx.layouts.shell(g, nodes_by_shell, theta=theta)
     print(nodes)

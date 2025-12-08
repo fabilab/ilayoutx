@@ -96,7 +96,7 @@ def multipartite(
             [np.sin(theta), np.cos(theta)],
         ]
     )
-    coords = coords @ rotation_matrix.T
+    coords = coords @ rotation_matrix
 
     layout = pd.DataFrame(coords, index=nodes, columns=["x", "y"])
     return layout

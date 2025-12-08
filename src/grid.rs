@@ -1,5 +1,5 @@
+use numpy::{PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
-use numpy::{PyArrayMethods, PyArray2};
 
 /// Square grid layout
 ///
@@ -40,15 +40,21 @@ pub fn square(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyAr
 ///
 /// Parameters:
 ///     n (int): The number of vertices.
-///     width (int): The number of vertices in each odd row of the grid. Even rows will have one
-///         fewer vertex.
+///     width (int): The number of vertices in each odd row of the grid.
+///     equal_rows (bool): If true, all rows have the same number of vertices.
+///         If false, odd rows have one more vertex than even rows.
 /// Returns:
 ///     An n x 2 numpy array containing the x and y coordinates of the vertices arranged in a
 ///     triangular grid.
 #[pyfunction]
 #[pyo3(name = "grid_triangle")]
-#[pyo3(signature = (n, width))]
-pub fn triangle(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, PyArray2<f64>>> {
+#[pyo3(signature = (n, width, equal_rows=true))]
+pub fn triangle(
+    py: Python<'_>,
+    n: usize,
+    width: usize,
+    equal_rows: bool,
+) -> PyResult<Bound<'_, PyArray2<f64>>> {
     if width == 0 {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "Width must be greater than 0",
@@ -61,11 +67,16 @@ pub fn triangle(py: Python<'_>, n: usize, width: usize) -> PyResult<Bound<'_, Py
     let mut y: usize = 0;
     for i in 0..n {
         let xoffset: f64 = 0.5 * ((y % 2) as f64);
+        let xmax: usize = if equal_rows {
+            width - 1
+        } else {
+            width - 1 - (y % 2)
+        };
         unsafe {
             *coords.get_mut([i, 0]).unwrap() = (x as f64) + xoffset;
             *coords.get_mut([i, 1]).unwrap() = (y as f64) * half_sqrt3;
         }
-        if x == width - 1 - (y % 2) {
+        if x == xmax {
             x = 0;
             y += 1
         } else {

@@ -1,6 +1,5 @@
+use numpy::{PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
-use numpy::{PyArrayMethods, PyArray2};
-
 
 /// Bipartite layout, two sets of vertices at any distance and angle theta in degrees
 ///
@@ -35,7 +34,7 @@ pub fn bipartite(
             *coords.get_mut([n1 + i, 0]).unwrap() =
                 distance * theta.cos() + (i as f64) * theta.sin();
             *coords.get_mut([n1 + i, 1]).unwrap() =
-                distance * theta.sin() + (i as f64) * theta.cos();
+                -distance * theta.sin() + (i as f64) * theta.cos();
         }
     }
     Ok(coords)
