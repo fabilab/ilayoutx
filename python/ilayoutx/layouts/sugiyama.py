@@ -302,7 +302,7 @@ def _from_extended_graph(coords_ext, matrix_ext, ncoords):
             src_tmp = np.flatnonzero(matrix_ext[:, iw] != 0)
             if len(src_tmp) != 1:
                 raise ValueError("Extended graph malformed, waypoint has multiple sources.")
-            src = src_tmp[0]
+        src = src_tmp[0]
         tgt_tmp = np.flatnonzero(matrix_ext[iw, :] != 0)
         if len(tgt_tmp) != 1:
             raise ValueError("Extended graph malformed, waypoint has multiple targets.")
@@ -316,6 +316,121 @@ def _from_extended_graph(coords_ext, matrix_ext, ncoords):
             src, tgt = None, None
 
     return coords, waypoints
+
+
+def _make_one_alignment(coords_ext, align_left, align_top):
+    x = np.zeros(coords_ext.shape[0], dtype=np.float64)
+
+    # TODO: implement each of the four extreme alignments
+
+    return x
+
+
+def _make_four_alignments(coords_ext, xs):
+    xs = np.zeros((coords_ext.shape[0], 4), dtype=np.float64)
+    for i in range(4):
+        # top left, top right, bottom left, bottom right
+        align_left = i % 2 == 0
+        align_top = i < 2
+
+        xs[:, i] = _make_one_alignment(coords_ext, align_left, align_top)
+
+    return xs
+
+
+def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
+    """Tweak the x coordinate to minimise edge lengths / maximise straight inner edges.
+
+    Parameters:
+        coords_ext: The coordinates of the extended graph.
+        matrix_ext: The adjacency matrix of the extended graph.
+        ncoords: The number of original coordinates (non-ghost nodes).
+    Returns:
+        Array with the adjusted x coordinates.
+
+    # NOTE: This algo aims to put each node at the median of its neighbors.
+    """
+    # TODO: implement the Brandes and Koepf algorithm
+
+    # The idea is to do three things:
+    # 1. Identify "type 1 conflicts", i.e. when an inner edge crosses an outer edge.
+    #    These are special because we would really like inner edges to be straight.
+    # 2. Compute four "extreme" layouts aligned to top left, top right, etc.
+    # 3. Compute the median of these 4 layouts.
+
+    # Identify mixed-edge crossings
+    edges_ignored = []
+    nlayers = coords_ext[:, 1].max() + 1
+    for il in range(nlayers - 1):
+        # Find all edges from this layer
+        srcs = np.flatnonzero(coords_ext[:, 1] == il)
+        srcs, tgts = matrix_ext[srcs].nonzero()
+        # Filter targets that are in next layer
+        # NOTE: Should the not all be by now?
+        idx_next_layer = coords_ext[tgts, 1] == il + 1
+        srcs = srcs[idx_next_layer]
+        tgts = tgts[idx_next_layer]
+
+        # TODO: vectorise for optimisation
+        # Find type 1 edge pairs
+        for j1, (src1, tgt1) in enumerate(zip(srcs, tgts)):
+            is_inner1 = (src1 >= ncoords) or (tgt1 >= ncoords)
+            for j2, (src2, tgt2) in enumerate(zip(srcs[:j1], tgts[:j1])):
+                is_inner2 = (src2 >= ncoords) or (tgt2 >= ncoords)
+                # Not mixed, skip
+                if is_inner1 == is_inner2:
+                    continue
+                # It's a mixed pair, which one is inner?
+                jinner = j1 if is_inner1 else j2
+
+                # Touching at one end is considered crossing, in that case
+                # prioritise the inner edge also
+                crossing = (src1 == src2) or (tgt1 == tgt2)
+                # Of course, there is also true crossing
+                # NOTE: for true crossing, the x coordinates should always be different
+                # anyway (previous bits of the algo only assign one x coord per node on
+                # each layer)
+                crossing |= (coords_ext[src1, 0] - coords_ext[src2, 0]) * (
+                    coords_ext[tgt1, 0] - coords_ext[tgt2, 0]
+                ) < 0
+                edges_ignored.append((srcs[jinner], tgts[jinner]))
+
+    # Prepare an array with the vertex to the left in the same layer
+    # For leftmost vertices, it's themselves
+    idx_vertex_left = np.zeros(coords_ext.shape[0], dtype=np.int64)
+    for il in range(nlayers):
+        idx_layer = np.flatnonzero(coords_ext[:, 1] == il)
+        if len(idx_layer) == 0:
+            continue
+        idx_sorted = np.argsort(coords_ext[idx_layer, 0])
+        idx_layer_sorted = idx_layer[idx_sorted]
+        idx_vertex_left[idx_layer_sorted[0]] = idx_layer_sorted[0]
+        if len(idx_layer_sorted) > 1:
+            idx_vertex_left[idx_layer_sorted[1:]] = idx_layer_sorted[:-1]
+
+    # Compute the four extreme layouts
+    xs = _make_four_alignments(coords_ext, xs)
+
+    # Find the smallest width alignment
+    xs_max = xs.max(axis=0)
+    xs_min = xs.min(axis=0)
+    jmin = np.argmin(xs_max - xs_min)
+
+    # Align the other 3 so they are vertically in line with the narrow one
+    for j in range(4):
+        if j == jmin:
+            continue
+        # j = 1 and 3 are right alighments, 0 and 2 are left alignments
+        if j % 2 == 0:
+            xs[:, j] += xs_min[jmin] - xs_min[j]
+        else:
+            xs[:, j] += xs_max[jmin] - xs_max[j]
+
+    # Compute the median x coordinate
+    xs.sort(axis=1)
+    xmed = 0.5 * (xs[:, 1] + xs[:, 2])
+
+    return xmed
 
 
 def sugiyama(
@@ -358,6 +473,7 @@ def sugiyama(
     coords_ext, matrix_ext = _to_extended_graph(coords, matrix, waypoints)
 
     coords_ext[:, 0] = _minimise_edge_crossings(coords_ext, matrix_ext, maxiter=maxiter_crossing)
+    coords_ext[:, 0] = _brandes_and_koepf(coords_ext, matrix_ext, nv)
 
     coords, waypoints = _from_extended_graph(coords_ext, matrix_ext, nv)
 
