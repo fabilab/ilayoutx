@@ -25,6 +25,11 @@ class NetworkXDataProvider(NetworkDataProvider):
 
         return Graph
 
+    def is_directed(self):
+        import networkx as nx
+
+        return isinstance(self.network, (nx.DiGraph, nx.MultiDiGraph))
+
     def number_of_vertices(self):
         """The number of vertices/nodes in the network."""
         return self.network.number_of_nodes()

@@ -7,9 +7,6 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
-    circle,
-)
 from ..ingest import (
     network_library,
     data_providers,
@@ -40,21 +37,16 @@ def spring(
     max_iter: int = 50,
     seed: Optional[int] = None,
 ):
-    """ForceAtlas2 algorithm from Gephi.
+    """Spring layout (Fruchterman-Reingold).
 
     Parameters:
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes.
-        jitter_tolerance: Controls the tolerance for adjusting the speed of layout generation.
-        scaling_ratio: Determines the scaling of attraction and repulsion forces.
-        gravity: Determines the amount of attraction on nodes to the center. Prevents islands
-            (i.e. weakly connected or disconnected parts of the graph) from drifting away.
-        distributed_action: Distributes the attraction force evenly among nodes.
-        strong_gravity: Applies a strong gravitational pull towards the center.
-        mass: Maps nodes to their masses, influencing the attraction to other nodes.
-        size: Maps nodes to their sizes, preventing crowding by creating a halo effect.
-        dissuade_hubs: Prevents the clustering of hub nodes.
-        linlog: Uses logarithmic attraction instead of linear.
+        optimal_distance: Optimal distance between nodes. If None, set to sqrt(1/n).
+        radius: The approximate radius of the layout.
+        center: The center of the layout.
+        gravity: Gravity force scaling to apply towards the center.
+        method: The method to use. Currently only "force" is supported.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         max_iter: Max iterations before termination of the algorithm.
         seed: A random seed to use.

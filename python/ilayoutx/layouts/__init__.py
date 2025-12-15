@@ -21,6 +21,7 @@ from .mds import multidimensional_scaling
 from .gem import graph_embedder
 from .lgl import large_graph_layout
 from .umap import umap
+from .sugiyama import sugiyama
 
 
 __all__ = (
@@ -41,4 +42,5 @@ __all__ = (
     graph_embedder.__name__,
     large_graph_layout.__name__,
     umap.__name__,
+    sugiyama.__name__,
 )

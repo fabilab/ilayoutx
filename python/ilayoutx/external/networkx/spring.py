@@ -73,16 +73,19 @@ def _fruchterman_reingold(
         np.clip(distance, 0.01, None, out=distance)
 
         # "forces"
-        repulsion = k**2 / distance**2
-        attraction = A * distance / k
+        ratio = distance / k
+        repulsion = 1.0 / ratio / ratio
+        attraction = A * ratio
+        force = repulsion - attraction
 
         # displacement as a result
-        displacement = np.einsum("ijk,ij->ik", delta, (repulsion - attraction))
+        displacement = np.einsum("ijk,ij->ik", delta, force)
 
         # update positions
         length = np.linalg.norm(displacement, axis=-1)
-        length = np.where(length < 0.01, 0.1, length)
+        np.clip(length, a_min=0.01, a_max=None, out=length)
         delta_pos = np.einsum("ij,i->ij", displacement, t / length)
+
         pos += delta_pos
 
         # cool temperature

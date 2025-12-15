@@ -25,6 +25,10 @@ class IGraphDataProvider(NetworkDataProvider):
 
         return ig.Graph
 
+    def is_directed(self):
+        """Whether the network is directed."""
+        return self.network.is_directed()
+
     def number_of_vertices(self):
         """The number of vertices/nodes in the network."""
         return self.network.vcount()
@@ -73,9 +77,13 @@ class IGraphDataProvider(NetworkDataProvider):
         second = np.flatnonzero(vertex_types)
         return first, second
 
-    def degrees(self) -> pd.Series:
+    def degrees(self, kind=None) -> pd.Series:
         """Get the degrees of all vertices."""
-        return pd.Series(self.network.degree())
+        if kind is None:
+            return pd.Series(self.network.degree())
+        if kind == "in":
+            return pd.Series(self.network.indegree())
+        return pd.Series(self.network.outdegree())
 
     def bfs(
         self,
