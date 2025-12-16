@@ -324,7 +324,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
     align = -np.ones(nv, dtype=np.int64)
 
     # TODO: implement each of the four extreme alignments
-    
+
     for i in range(nv):
         roots[i] = i
         align[i] = i
@@ -350,7 +350,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
                     continue
 
                 if len(neis) == 1:
-                    medians= [neis[0]]
+                    medians = [neis[0]]
                 else:
                     idx_neis_sorted = np.argsort(coords_ext[neis, 0])
                     # Odd number of neighbors, take the central one
@@ -359,7 +359,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
                     # Even number of neighbors, take both central ones and
                     # then there's logic to deal with the mess depending on what kind of
                     # conflicts we have
-                    medians = neis[idx_neis_sorted[len(neis) // 2 - 1: len(neis) // 2 + 1]]
+                    medians = neis[idx_neis_sorted[len(neis) // 2 - 1 : len(neis) // 2 + 1]]
                     if not align_left:
                         medians = medians[::-1]
 
@@ -369,7 +369,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
                 # we've been here
                 for idx_nei in medians:
                     ...
-                    # FIXME: This looks really sus
+                    # FIXME: This looks really sus, makes more sense in C but even there...
                     if align[idx] != idx:
                         break
 
@@ -383,17 +383,39 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
                     # Try to align with this median
                     xmed = coords_ext[idx_nei, 0]
                     if (align_left and xmed > r) or (not align_left and xmed < r):
-                        # FIXME: This is highly likely broken since it's just copilot...
+                        # TODO: check the following
+                        align[idx_nei] = idx
                         roots[idx] = roots[idx_nei]
-                        align[roots[idx]] = idx
-                        align[idx] = idx_nei
+                        align[idx] = roots[idx_nei]
                         r = xmed
 
     return roots, align
 
 
-def _compact_horizontal(..., roots, aligns):
-    x = np.zeros(roots.shape[0], dtype=np.float64)
+def _place_block(...):
+# TODO: uff
+
+
+def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
+    """Perform horizontal compaction given roots and aligns.
+
+    Parameters:
+    """
+
+    # Place root blocks one by one
+    sinks = np.inf * np.ones(roots.shape[0], dtype=np.int64)
+    for i in range(roots.shape[0]):
+        if roots[i] == i:
+            sinks, shifts, dx = _place_block(
+                i, coords_ext, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap
+            )
+
+    # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
+    x = dx[roots]
+    xshift = shifts[sinks[roots]]
+    good_shifts = xshift < np.inf
+    x[good_shifts] += xshift[good_shifts]
+
     return x
 
 
@@ -405,7 +427,11 @@ def _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers
         align_top = i < 2
 
         roots, aligns = _make_one_alignment(
-            coords_ext, matrix_ext, ignored_edges, align_left, align_top,
+            coords_ext,
+            matrix_ext,
+            ignored_edges,
+            align_left,
+            align_top,
             nlayers,
         )
         xs[:, i] = _compact_horizontal(..., roots, aligns)
