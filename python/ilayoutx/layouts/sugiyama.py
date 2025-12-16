@@ -318,22 +318,97 @@ def _from_extended_graph(coords_ext, matrix_ext, ncoords):
     return coords, waypoints
 
 
-def _make_one_alignment(coords_ext, align_left, align_top):
-    x = np.zeros(coords_ext.shape[0], dtype=np.float64)
+def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align_top, nlayers):
+    nv = coords_ext.shape[0]
+    roots = -np.zeros(nv, dtype=np.int64)
+    align = -np.ones(nv, dtype=np.int64)
 
     # TODO: implement each of the four extreme alignments
+    
+    for i in range(nv):
+        roots[i] = i
+        align[i] = i
+        yrange = range(1, nlayers) if align_top else range(nlayers - 2, -1, -1)
+        for y in yrange:
+            r = -1000000000 if align_left else 1000000000
+            idx_layer = np.flatnonzero(coords_ext[:, 1] == y)
+            idx_range = idx_layer[np.argsort(coords_ext[idx_layer, 0])]
+            if not align_left:
+                idx_range = idx_range[::-1]
+            for idx in idx_range:
+                # Alerady aligned prior, skip
+                if align[idx] != idx:
+                    continue
+                # Find neighbors in next/previous layer (depending on align_top)
+                if align_top:
+                    # Previous layer (incoming)
+                    neis = np.flatnonzero(matrix_ext[:, idx] != 0)
+                else:
+                    # Next layer (outgoing)
+                    neis = np.flatnonzero(matrix_ext[idx, :] != 0)
+                if len(neis) == 0:
+                    continue
 
+                if len(neis) == 1:
+                    medians= [neis[0]]
+                else:
+                    idx_neis_sorted = np.argsort(coords_ext[neis, 0])
+                    # Odd number of neighbors, take the central one
+                    if len(neis) % 2 == 1:
+                        medians = [neis[idx_neis_sorted[len(neis) // 2]]]
+                    # Even number of neighbors, take both central ones and
+                    # then there's logic to deal with the mess depending on what kind of
+                    # conflicts we have
+                    medians = neis[idx_neis_sorted[len(neis) // 2 - 1: len(neis) // 2 + 1]]
+                    if not align_left:
+                        medians = medians[::-1]
+
+                # Now we might have one or two medians for the neighbors of each node
+                # If two medians, try to align with the better, then if not working the worse
+                # median. Either way, set the alignment for this node for good and mark that
+                # we've been here
+                for idx_nei in medians:
+                    ...
+                    # FIXME: This looks really sus
+                    if align[idx] != idx:
+                        break
+
+                    # Do not align onto an ignored edge, it's the outer conflict of an inner edge
+                    # that takes priority
+                    if (align_top and ((idx_nei, idx) in ignored_edges)) or (
+                        (not align_top) and ((idx, idx_nei) in ignored_edges)
+                    ):
+                        continue
+
+                    # Try to align with this median
+                    xmed = coords_ext[idx_nei, 0]
+                    if (align_left and xmed > r) or (not align_left and xmed < r):
+                        # FIXME: This is highly likely broken since it's just copilot...
+                        roots[idx] = roots[idx_nei]
+                        align[roots[idx]] = idx
+                        align[idx] = idx_nei
+                        r = xmed
+
+    return roots, align
+
+
+def _compact_horizontal(..., roots, aligns):
+    x = np.zeros(roots.shape[0], dtype=np.float64)
     return x
 
 
-def _make_four_alignments(coords_ext, xs):
+def _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers):
     xs = np.zeros((coords_ext.shape[0], 4), dtype=np.float64)
     for i in range(4):
         # top left, top right, bottom left, bottom right
         align_left = i % 2 == 0
         align_top = i < 2
 
-        xs[:, i] = _make_one_alignment(coords_ext, align_left, align_top)
+        roots, aligns = _make_one_alignment(
+            coords_ext, matrix_ext, ignored_edges, align_left, align_top,
+            nlayers,
+        )
+        xs[:, i] = _compact_horizontal(..., roots, aligns)
 
     return xs
 
@@ -359,7 +434,7 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
     # 3. Compute the median of these 4 layouts.
 
     # Identify mixed-edge crossings
-    edges_ignored = []
+    ignored_edges = []
     nlayers = coords_ext[:, 1].max() + 1
     for il in range(nlayers - 1):
         # Find all edges from this layer
@@ -393,7 +468,7 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
                 crossing |= (coords_ext[src1, 0] - coords_ext[src2, 0]) * (
                     coords_ext[tgt1, 0] - coords_ext[tgt2, 0]
                 ) < 0
-                edges_ignored.append((srcs[jinner], tgts[jinner]))
+                ignored_edges.append((srcs[jinner], tgts[jinner]))
 
     # Prepare an array with the vertex to the left in the same layer
     # For leftmost vertices, it's themselves
@@ -409,7 +484,7 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
             idx_vertex_left[idx_layer_sorted[1:]] = idx_layer_sorted[:-1]
 
     # Compute the four extreme layouts
-    xs = _make_four_alignments(coords_ext, xs)
+    xs = _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers)
 
     # Find the smallest width alignment
     xs_max = xs.max(axis=0)
