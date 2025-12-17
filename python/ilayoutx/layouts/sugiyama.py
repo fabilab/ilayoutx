@@ -323,8 +323,6 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
     roots = -np.zeros(nv, dtype=np.int64)
     align = -np.ones(nv, dtype=np.int64)
 
-    # TODO: implement each of the four extreme alignments
-
     for i in range(nv):
         roots[i] = i
         align[i] = i
@@ -368,7 +366,6 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
                 # median. Either way, set the alignment for this node for good and mark that
                 # we've been here
                 for idx_nei in medians:
-                    ...
                     # FIXME: This looks really sus, makes more sense in C but even there...
                     if align[idx] != idx:
                         break
@@ -392,8 +389,49 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
     return roots, align
 
 
-def _place_block(...):
-# TODO: uff
+# NOTE: This function is recursive and changes all kinds of things (e.g. the sinks)
+# in place, no return. So be very careful before trying to optimise it out.
+def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
+    # Only place each node once, even though you might get there through multiple
+    # paths within a block
+    if dx[idx] >= -np.inf:
+        return
+
+    # The function is recursive up to the root of the block, which is placed at 0.0
+    dx[idx] = 0.0
+
+    idx_align = None
+    while (idx_align is None) or (idx_align != idx):
+        # Start from idx, and then follow the alignment
+        if idx_align is not None:
+            idx_align = idx
+
+        # Find the left neighbor in the same layer (or yourself)
+        idx_left = idx_vertex_left[idx_align]
+        if idx_left != idx_align:
+            idx_left_root = roots[idx_left]
+            # Recursively place the left block first
+            _place_block(idx_left_root, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
+            sink_left_root = sinks[idx_left_root]
+            sink_idx = sinks[idx]
+            # If idx has not sink yet, assign it
+            if sink_idx == idx:
+                sinks[idx] = sink_idx = sink_left_root
+
+            # idx3 and idx have the same sink, only separate them by hgap
+            # NOTE that idx3 is the root of idx, so it will go to the left
+            if sink_left_root == sink_idx:
+                dx[idx] = max(dx[idx], dx[idx_left_root] + hgap)
+            # idx3 and idx have different sinks, so the idx2/idx3 block gets
+            # shifted to the left (realighment of entire alignments happens afterwards
+            # anyway)
+            else:
+                shifts[sink_left_root] = min(
+                    shifts[sink_left_root], dx[idx] - dx[idx_left_root] - hgap
+                )
+
+        # Follow the alignment
+        idx_align = aligns[idx_align]
 
 
 def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
@@ -404,11 +442,11 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
 
     # Place root blocks one by one
     sinks = np.inf * np.ones(roots.shape[0], dtype=np.int64)
+    shifts = np.inf * np.ones(roots.shape[0], dtype=np.float64)
+    dx = -np.inf * np.ones(roots.shape[0], dtype=np.float64)
     for i in range(roots.shape[0]):
         if roots[i] == i:
-            sinks, shifts, dx = _place_block(
-                i, coords_ext, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap
-            )
+            _place_block(i, coords_ext, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
 
     # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
     x = dx[roots]
