@@ -319,6 +319,18 @@ def _from_extended_graph(coords_ext, matrix_ext, ncoords):
 
 
 def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align_top, nlayers):
+    """Find roots and alignments in one of the four corners.
+
+    Parameters:
+        coords_ext: The coordinates of the extended graph.
+        matrix_ext: The adjacency matrix of the extended graph.
+        ignored_edges: The edges to ignore due to type 1 conflicts.
+        align_left: Whether to align to the left (True) or right (False).
+        align_top: Whether to align to the top (True) or bottom (False).
+        nlayers: The number of layers in the graph (for convenience).
+    Returns:
+        Two arrays with the root and aligns indices for each node.
+    """
     nv = coords_ext.shape[0]
     roots = -np.zeros(nv, dtype=np.int64)
     align = -np.ones(nv, dtype=np.int64)
@@ -394,7 +406,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
 def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
     # Only place each node once, even though you might get there through multiple
     # paths within a block
-    if dx[idx] >= -np.inf:
+    if dx[idx] > -np.inf:
         return
 
     # The function is recursive up to the root of the block, which is placed at 0.0
@@ -403,7 +415,7 @@ def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
     idx_align = None
     while (idx_align is None) or (idx_align != idx):
         # Start from idx, and then follow the alignment
-        if idx_align is not None:
+        if idx_align is None:
             idx_align = idx
 
         # Find the left neighbor in the same layer (or yourself)
@@ -448,6 +460,10 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
         if roots[i] == i:
             _place_block(i, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
 
+            print("Within for loops of _compact_horizontal")
+            print(i, roots)
+            print(dx)
+
     # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
     x = dx[roots]
     xshift = shifts[sinks[roots]]
@@ -460,11 +476,36 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
 def _make_and_compact_four_alignments(
     coords_ext, matrix_ext, idx_vertex_left, ignored_edges, nlayers
 ):
+    """Build four extreme alignments to be median-ed for the final layout.
+
+    Parameters:
+        coords_ext: The coordinates of the extended graph.
+        matrix_ext: The adjacency matrix of the extended graph.
+        idx_vertex_left: The index of the vertex to the left in the same layer. For
+            leftmost vertices, it's themselves.
+        ignored_edges: The edges to ignore due to type 1 conflicts.
+        nlayers: The number of layers in the graph (for convenience).
+    Returns:
+        A Nx4 array with the four extreme x coordinate layouts.
+
+    NOTE: That this "compute four times and median" approach works seems
+        surprising to many but hey they do usually look good.
+    """
     xs = np.zeros((coords_ext.shape[0], 4), dtype=np.float64)
     for i in range(4):
         # top left, top right, bottom left, bottom right
         align_left = i % 2 == 0
         align_top = i < 2
+
+        print(f"Making alignment {i}:")
+        if align_left and align_top:
+            print("  Align top left")
+        elif align_left:
+            print("  Align bottom left")
+        elif align_top:
+            print("  Align top right")
+        else:
+            print("  Align bottom right")
 
         roots, aligns = _make_one_alignment(
             coords_ext,
@@ -474,7 +515,13 @@ def _make_and_compact_four_alignments(
             align_top,
             nlayers,
         )
+
+        print("  Roots and aligns after alignment:")
+        print(roots)
+        print(aligns)
+
         xs[:, i] = _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns)
+        print(xs[:, i])
 
     return xs
 
@@ -536,6 +583,9 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
                 ) < 0
                 ignored_edges.append((srcs[jinner], tgts[jinner]))
 
+    print("Ignored edges (type 1 conflicts):")
+    print(ignored_edges)
+
     # Prepare an array with the vertex to the left in the same layer
     # For leftmost vertices, it's themselves
     idx_vertex_left = np.zeros(coords_ext.shape[0], dtype=np.int64)
@@ -548,6 +598,9 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
         idx_vertex_left[idx_layer_sorted[0]] = idx_layer_sorted[0]
         if len(idx_layer_sorted) > 1:
             idx_vertex_left[idx_layer_sorted[1:]] = idx_layer_sorted[:-1]
+
+    print("Idx vertex left:")
+    print(idx_vertex_left)
 
     # Compute the four extreme layouts
     xs = _make_and_compact_four_alignments(
@@ -616,7 +669,14 @@ def sugiyama(
     coords_ext, matrix_ext = _to_extended_graph(coords, matrix, waypoints)
 
     coords_ext[:, 0] = _minimise_edge_crossings(coords_ext, matrix_ext, maxiter=maxiter_crossing)
+
+    print("Coords[:, 0] after crossing minimisation:")
+    print(coords_ext[:, 0])
+
     coords_ext[:, 0] = _brandes_and_koepf(coords_ext, matrix_ext, nv)
+
+    print("Coords[:, 0] after Brandes and Koepf:")
+    print(coords_ext[:, 0])
 
     coords, waypoints = _from_extended_graph(coords_ext, matrix_ext, nv)
 
