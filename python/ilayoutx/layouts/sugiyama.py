@@ -332,71 +332,84 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
         Two arrays with the root and aligns indices for each node.
     """
     nv = coords_ext.shape[0]
-    roots = -np.zeros(nv, dtype=np.int64)
-    align = -np.ones(nv, dtype=np.int64)
+    roots = np.arange(nv)
+    align = np.arange(nv)
 
-    for i in range(nv):
-        roots[i] = i
-        align[i] = i
-        yrange = range(1, nlayers) if align_top else range(nlayers - 2, -1, -1)
-        for y in yrange:
-            r = -1000000000 if align_left else 1000000000
-            idx_layer = np.flatnonzero(coords_ext[:, 1] == y)
-            idx_range = idx_layer[np.argsort(coords_ext[idx_layer, 0])]
+    # I think we want to iterate over all nodes from the alignment corner outwards.
+    # For top left as an example, we want to go from layer 0 (roots) to layer 1
+    # by setting those roots, then down to the bottom. Within each layer, we
+    # go left to right, setting alignments as we go.
+    if align_left and align_top:
+        idx_sorted = np.lexsort((coords_ext[:, 0], coords_ext[:, 1]))
+    elif align_left:
+        idx_sorted = np.lexsort((coords_ext[:, 0], -coords_ext[:, 1]))
+    elif align_top:
+        idx_sorted = np.lexsort((-coords_ext[:, 0], coords_ext[:, 1]))
+    else:
+        idx_sorted = np.lexsort((-coords_ext[:, 0], -coords_ext[:, 1]))
+
+    yold = -1
+    for idx in idx_sorted:
+        y = coords_ext[idx, 1]
+
+        # New layer
+        if y != yold:
+            yold = y
+            # Store the extreme x coordinate we've aligned to so far
+            r = None
+
+        # Propagate information from previous layer
+        if align_top:
+            idx_neis = np.flatnonzero(matrix_ext[:, idx] != 0)
+        else:
+            idx_neis = np.flatnonzero(matrix_ext[idx, :] != 0)
+
+        nneis = len(idx_neis)
+
+        # Nothing to propagate (e.g. first node in first layer)
+        if nneis == 0:
+            continue
+
+        # Trickle down the median(s) of the upper layer neighbors to this node
+        if nneis == 1:
+            idx_medians = [idx_neis[0]]
+        else:
+            idx_neis_sorted = np.argsort(coords_ext[idx_neis, 0])
+            # Odd number of neighbors, take the central one
+            if nneis % 2 == 1:
+                idx_medians = [idx_neis[idx_neis_sorted[nneis // 2]]]
+            # Even number of neighbors, take both central ones and
+            # then there's logic to deal with the mess depending on what kind of
+            # conflicts we have
+            idx_medians = idx_neis[idx_neis_sorted[nneis // 2 - 1 : nneis // 2 + 1]]
             if not align_left:
-                idx_range = idx_range[::-1]
-            for idx in idx_range:
-                # Alerady aligned prior, skip
-                if align[idx] != idx:
-                    continue
-                # Find neighbors in next/previous layer (depending on align_top)
-                if align_top:
-                    # Previous layer (incoming)
-                    neis = np.flatnonzero(matrix_ext[:, idx] != 0)
-                else:
-                    # Next layer (outgoing)
-                    neis = np.flatnonzero(matrix_ext[idx, :] != 0)
-                if len(neis) == 0:
-                    continue
+                idx_medians = idx_medians[::-1]
 
-                if len(neis) == 1:
-                    medians = [neis[0]]
-                else:
-                    idx_neis_sorted = np.argsort(coords_ext[neis, 0])
-                    # Odd number of neighbors, take the central one
-                    if len(neis) % 2 == 1:
-                        medians = [neis[idx_neis_sorted[len(neis) // 2]]]
-                    # Even number of neighbors, take both central ones and
-                    # then there's logic to deal with the mess depending on what kind of
-                    # conflicts we have
-                    medians = neis[idx_neis_sorted[len(neis) // 2 - 1 : len(neis) // 2 + 1]]
-                    if not align_left:
-                        medians = medians[::-1]
+        print("Layer", y, "node", idx, "neighbors:", idx_neis, "medians:", idx_medians)
 
-                # Now we might have one or two medians for the neighbors of each node
-                # If two medians, try to align with the better, then if not working the worse
-                # median. Either way, set the alignment for this node for good and mark that
-                # we've been here
-                for idx_nei in medians:
-                    # FIXME: This looks really sus, makes more sense in C but even there...
-                    if align[idx] != idx:
-                        break
+        # If two medians found, choose which one to take (or a mixture) based
+        # on inner edge preference and left/right alignment (left alignments
+        # always try the left one first, right alignments the right one first)
+        for idx_median in idx_medians:
+            # FIXME: The idea is that if an edge was ignored due to type 1 conflict,
+            # we can ignore this vertex. I'm actually not 100% sure this covers all cases
+            if (align_top and ((idx_median, idx) in ignored_edges)) or (
+                (not align_top) and ((idx, idx_median) in ignored_edges)
+            ):
+                print("Ignored median: type 1 conflict")
+                continue
 
-                    # Do not align onto an ignored edge, it's the outer conflict of an inner edge
-                    # that takes priority
-                    if (align_top and ((idx_nei, idx) in ignored_edges)) or (
-                        (not align_top) and ((idx, idx_nei) in ignored_edges)
-                    ):
-                        continue
-
-                    # Try to align with this median
-                    xmed = coords_ext[idx_nei, 0]
-                    if (align_left and xmed > r) or (not align_left and xmed < r):
-                        # TODO: check the following
-                        align[idx_nei] = idx
-                        roots[idx] = roots[idx_nei]
-                        align[idx] = roots[idx_nei]
-                        r = xmed
+            xmed = coords_ext[idx_median, 0]
+            if (r is None) or (align_left and xmed > r) or (not align_left and xmed < r):
+                # Anchor the upper layer alignment to the evolving front
+                align[idx_median] = idx
+                # Anchor the evolving front's roots to the top of the DAG
+                roots[idx] = roots[idx_median]
+                # FIXME: Back-anchor the alignment of the front to the root, unless
+                # this is used as a feeding "median" neighbor in the next layer?
+                align[idx] = roots[idx_median]
+                r = xmed
+                break
 
     return roots, align
 
@@ -404,45 +417,68 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
 # NOTE: This function is recursive and changes all kinds of things (e.g. the sinks)
 # in place, no return. So be very careful before trying to optimise it out.
 def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
-    # Only place each node once, even though you might get there through multiple
+    """Place a block, which correspond to an alignment root, recursively.
+
+    Parameters:
+        idx: The index of the root of the block to place.
+        idx_vertex_left: The index of the vertex to the left in the same layer. For
+            leftmost vertices, it's themselves.
+        roots: The roots array from alignment. For nodes that are not used in this
+            alignment (they are not along a chain to the root), it's themselves.
+            For root nodes, it's themselves too. For everyone else, it's not themselves.
+        aligns: The aligns array from alignment. For nodes that are not used in this
+            alignment, it's themselves. For aligned nodes, it's the index of the node
+            below them in the alignment. For the last node in an alignment, it's the root
+            (it is basically a cycle around the aligned nodes only).
+        hgap: The horizontal gap between nodes.
+    Returns:
+        None. The function changes dx, sinks, and shifts in place.
+    """
+    # Only place each root once, even though you might get there through multiple
     # paths within a block
-    if dx[idx] > -np.inf:
+    if idx in dx:
         return
 
-    # The function is recursive up to the root of the block, which is placed at 0.0
+    # The function is recursive up to the root of the block, which is initially placed at 0.0
     dx[idx] = 0.0
 
+    # Start from the root (_place_block is ALWAYS called on roots only) and flow around the
+    # alignment cycle exactly once, until you are back to the root. We visit each node in
+    # the block exactly once that way.
     idx_align = None
     while (idx_align is None) or (idx_align != idx):
-        # Start from idx, and then follow the alignment
         if idx_align is None:
             idx_align = idx
 
-        # Find the left neighbor in the same layer (or yourself)
+        # Find the left neighbor in the same layer (or yourself). If there's another
+        # alignment chain to your left, we need to make sure to place it first.
         idx_left = idx_vertex_left[idx_align]
         if idx_left != idx_align:
             idx_left_root = roots[idx_left]
-            # Recursively place the left block first
+            # Align the left chain first. Inside this call, it checks itself whether there's
+            # an even more left chain to align first, so this is recursive. Bottom line is aligning
+            # left chains first, and then move right. That could be rewritten iteratively that way.
             _place_block(idx_left_root, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
+
+            # Ok there was one (or more) left chains and they are all aligned and placed now.
             sink_left_root = sinks[idx_left_root]
             sink_idx = sinks[idx]
-            # If idx has not sink yet, assign it
+            # If this root is its own sink (the default) and there's a chain on the left,
+            # we use that sink instead
             if sink_idx == idx:
                 sinks[idx] = sink_idx = sink_left_root
 
-            # idx3 and idx have the same sink, only separate them by hgap
-            # NOTE that idx3 is the root of idx, so it will go to the left
+            # There is a chain on the left, same sink, we need to space them apart
             if sink_left_root == sink_idx:
                 dx[idx] = max(dx[idx], dx[idx_left_root] + hgap)
-            # idx3 and idx have different sinks, so the idx2/idx3 block gets
-            # shifted to the left (realighment of entire alignments happens afterwards
-            # anyway)
+            # There is a chain on the left but we have already assigned a different sink (e.g.
+            # one even more left), we need to make sure the left chain's sink does not overlap
             else:
                 shifts[sink_left_root] = min(
                     shifts[sink_left_root], dx[idx] - dx[idx_left_root] - hgap
                 )
 
-        # Follow the alignment
+        # Follow the alignment, which cycles down and eventually back to the root
         idx_align = aligns[idx_align]
 
 
@@ -450,23 +486,45 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
     """Perform horizontal compaction given roots and aligns.
 
     Parameters:
+        coords_ext: The coordinates of the extended graph.
+        idx_vertex_left: The index of the vertex to the left in the same layer. For
+            leftmost vertices, it's themselves.
+        roots: The roots array from alignment. For nodes that are not used in this
+            alignment (they are not along a chain to the root), it's themselves.
+            For root nodes, it's themselves too. For everyone else, it's not themselves.
+        aligns: The aligns array from alignment. For nodes that are not used in this
+            alignment, it's themselves. For aligned nodes, it's the index of the node
+            below them in the alignment. For the last node in an alignment, it's the root
+            (it is basically a cycle around the aligned nodes only).
+        hgap: The horizontal gap between nodes.
     """
 
-    # Place root blocks one by one
-    sinks = np.zeros(roots.shape[0], dtype=np.int64)
-    shifts = np.inf * np.ones(roots.shape[0], dtype=np.float64)
-    dx = -np.inf * np.ones(roots.shape[0], dtype=np.float64)
-    for i in range(roots.shape[0]):
-        if roots[i] == i:
-            _place_block(i, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
+    # NOTE: We compute two separate x coordinates and combine them at the end:
+    # - dx: the position of each node within its block (aligned set of nodes).
+    # - shifts: the shift to apply to each block's sink to avoid overlaps with other blocks.
+    #     shifts are not defined for non-sink nodes (set to inf).
+    # To help with this, we use the array "sinks", which maps each root to its sink node.
+    # Non-root nodes *do not* have a sink (set to -1).
+    # In pure Python these would be dicts of sorts, but this is ok for now.
+    from collections import defaultdict
 
-            print("Within for loops of _compact_horizontal")
-            print(i, roots)
-            print(dx)
+    dx = defaultdict(lambda: -np.inf)
+    sinks = np.arange(len(roots))
+    sink_shifts = defaultdict(lambda: np.inf)
+    roots_idx = np.flatnonzero(roots == np.arange(roots.shape[0]))
+    print("Roots found:", roots_idx)
+    for i in roots_idx:
+        print("Placing block for root:", i)
+        _place_block(i, idx_vertex_left, roots, aligns, sinks, sink_shifts, dx, hgap)
+
+        print("Within for loops of _compact_horizontal")
+        print(dx)
+        print(sinks)
+        print(sink_shifts)
 
     # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
-    x = dx[roots]
-    xshift = shifts[sinks[roots]]
+    x = np.array([dx[root] for root in roots], dtype=np.float64)
+    xshift = np.array([sink_shifts[sinks[root]] for root in roots], dtype=np.float64)
     good_shifts = xshift < np.inf
     x[good_shifts] += xshift[good_shifts]
 
@@ -519,6 +577,7 @@ def _make_and_compact_four_alignments(
         print("  Roots and aligns after alignment:")
         print(roots)
         print(aligns)
+        print("  Compacting horizontally...")
 
         xs[:, i] = _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns)
         print(xs[:, i])
