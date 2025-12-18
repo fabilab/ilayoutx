@@ -441,12 +441,12 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
     """
 
     # Place root blocks one by one
-    sinks = np.inf * np.ones(roots.shape[0], dtype=np.int64)
+    sinks = np.zeros(roots.shape[0], dtype=np.int64)
     shifts = np.inf * np.ones(roots.shape[0], dtype=np.float64)
     dx = -np.inf * np.ones(roots.shape[0], dtype=np.float64)
     for i in range(roots.shape[0]):
         if roots[i] == i:
-            _place_block(i, coords_ext, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
+            _place_block(i, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
 
     # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
     x = dx[roots]
@@ -457,7 +457,9 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
     return x
 
 
-def _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers):
+def _make_and_compact_four_alignments(
+    coords_ext, matrix_ext, idx_vertex_left, ignored_edges, nlayers
+):
     xs = np.zeros((coords_ext.shape[0], 4), dtype=np.float64)
     for i in range(4):
         # top left, top right, bottom left, bottom right
@@ -472,7 +474,7 @@ def _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers
             align_top,
             nlayers,
         )
-        xs[:, i] = _compact_horizontal(..., roots, aligns)
+        xs[:, i] = _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns)
 
     return xs
 
@@ -548,7 +550,9 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
             idx_vertex_left[idx_layer_sorted[1:]] = idx_layer_sorted[:-1]
 
     # Compute the four extreme layouts
-    xs = _make_compact_four_alignments(coords_ext, matrix_ext, ignored_edges, nlayers)
+    xs = _make_and_compact_four_alignments(
+        coords_ext, matrix_ext, idx_vertex_left, ignored_edges, nlayers
+    )
 
     # Find the smallest width alignment
     xs_max = xs.max(axis=0)
