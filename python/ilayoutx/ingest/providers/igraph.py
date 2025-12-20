@@ -67,6 +67,16 @@ class IGraphDataProvider(NetworkDataProvider):
 
         return matrix
 
+    def component_memberships(self, mode):
+        """Get the connected component memberships of all vertices.
+
+        Parameters:
+            mode: The mode to use for directed graphs. One of 'weak' or 'strong'.
+        Returns:
+            A numpy array of component memberships for each vertex, starting from 0.
+        """
+        return np.array(self.network.connected_components(mode=mode).membership)
+
     def bipartite(self) -> tuple[set]:
         """Get a bipartit split from a bipartite graph."""
         is_bipartite, vertex_types = self.network.is_bipartite(return_types=True)

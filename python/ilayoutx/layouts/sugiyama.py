@@ -23,6 +23,16 @@ from ..ingest import (
 )
 
 
+# Debug flag, this is a pretty long algorithm
+DEBUG_SUGI = __import__("os").getenv("ILAYOUTX_DEBUG_SUGI", "True") in (
+    "True",
+    "true",
+    "y",
+    "1",
+    "yes",
+)
+
+
 def feedback_arc_set_eades(network, matrix):
     """Find a layering of the directed acyclic graph using Eades' algorithm.
 
@@ -201,9 +211,9 @@ def _compute_barycenters(coords, matrix, idx_layer, direction):
         else:
             neis = np.flatnonzero(matrix[i, :] != 0)
         if len(neis) == 0:
-            barys[iwl] = coords[i, 0]
+            barys[iwl] = coords["x"][i]
         else:
-            barys[iwl] = coords[neis, 0].mean()
+            barys[iwl] = coords["x"][neis].mean()
     return barys
 
 
@@ -214,45 +224,48 @@ def _minimise_edge_crossings(coords, matrix, maxiter=10):
     NOTE: All edges are between consecutive layers due to ghost nodes for waypoints.
     """
 
-    nlayers = coords[:, 1].max() + 1
+    nlayers = coords["y"].max() + 1
     if nlayers < 2:
         # No need to do anything for 1 layer
-        return coords[:, 0]
+        return coords["x"]
 
     for niter in range(maxiter):
-        print("Minimising crossings, iteration", niter + 1)
+        if DEBUG_SUGI:
+            print("Minimising crossings, iteration", niter + 1)
         changed = False
 
         # Sort by uppper barycenter, from second layer to last
         for i in range(1, nlayers):
-            idx_layer = np.flatnonzero(coords[:, 1] == i)
+            idx_layer = np.flatnonzero(coords["y"] == i)
             nlayer = len(idx_layer)
             barys = _compute_barycenters(coords, matrix, idx_layer, direction="in")
             idx_sorted = np.argsort(barys)
             idx_sorted = idx_layer[idx_sorted]
-            if (coords[idx_sorted, 0] != np.arange(nlayer)).any():
-                print(coords[idx_sorted, 0], np.arange(nlayer))
-                print("Changed upper barys")
+            if (coords["x"][idx_sorted] != np.arange(nlayer)).any():
+                if DEBUG_SUGI:
+                    print(coords["x"][idx_sorted], np.arange(nlayer))
+                    print("Changed upper barys")
                 changed = True
-            coords[idx_sorted, 0] = np.arange(nlayer)
+            coords["x"][idx_sorted] = np.arange(nlayer)
 
         # Sort by lower barycenter, from second last layer to first
         for i in range(nlayers - 2, -1, -1):
-            idx_layer = np.flatnonzero(coords[:, 1] == i)
+            idx_layer = np.flatnonzero(coords["y"] == i)
             nlayer = len(idx_layer)
             barys = _compute_barycenters(coords, matrix, idx_layer, direction="out")
             idx_sorted = np.argsort(barys)
             idx_sorted = idx_layer[idx_sorted]
-            if (coords[idx_sorted, 0] != np.arange(nlayer)).any():
-                print(coords[idx_sorted, 0], np.arange(nlayer))
-                print("Changed lower barys")
+            if (coords["x"][idx_sorted] != np.arange(nlayer)).any():
+                if DEBUG_SUGI:
+                    print(coords["x"][idx_sorted], np.arange(nlayer))
+                    print("Changed lower barys")
                 changed = True
-            coords[idx_sorted, 0] = np.arange(nlayer)
+            coords["x"][idx_sorted] = np.arange(nlayer)
 
         if not changed:
             break
 
-    return coords[:, 0]
+    return coords["x"]
 
 
 def _to_extended_graph(coords, matrix, waypoints):
@@ -267,8 +280,8 @@ def _to_extended_graph(coords, matrix, waypoints):
     """
     ncoords = len(coords)
     nwaypoints = sum(len(x) for x in waypoints.values())
-    coords_ext = np.zeros((ncoords + nwaypoints, 2), dtype=coords.dtype)
-    coords_ext[:ncoords, :] = coords
+    coords_ext = np.zeros(ncoords + nwaypoints, dtype=coords.dtype)
+    coords_ext[:ncoords] = coords
     matrix_ext = np.zeros((ncoords + nwaypoints, ncoords + nwaypoints), dtype=matrix.dtype)
     matrix_ext[:ncoords, :ncoords] = matrix
     iw = ncoords
@@ -278,8 +291,8 @@ def _to_extended_graph(coords, matrix, waypoints):
         # Set single-layer edgges via waypoints
         matrix_ext[src, iw] = 1
         for i, (x, y) in enumerate(wp_list):
-            coords_ext[iw, 0] = x
-            coords_ext[iw, 1] = y
+            coords_ext["x"][iw] = x
+            coords_ext["y"][iw] = y
             if i == len(wp_list) - 1:
                 itgt = tgt
             else:
@@ -292,7 +305,7 @@ def _to_extended_graph(coords, matrix, waypoints):
 
 def _from_extended_graph(coords_ext, matrix_ext, ncoords):
     """Create original coordinates and waypoints from extended graph."""
-    coords = coords_ext[:ncoords, :]
+    coords = coords_ext[:ncoords]
     waypoints = {}
     src, tgt = None, None
     nlist = []
@@ -307,7 +320,7 @@ def _from_extended_graph(coords_ext, matrix_ext, ncoords):
         if len(tgt_tmp) != 1:
             raise ValueError("Extended graph malformed, waypoint has multiple targets.")
         tgt_tmp = tgt_tmp[0]
-        nlist.append((coords_ext[iw, 0], coords_ext[iw, 1]))
+        nlist.append((coords_ext["x"][iw], coords_ext["y"][iw]))
         # Target found, close off waypoint list
         if tgt_tmp < ncoords:
             tgt = tgt_tmp
@@ -331,7 +344,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
     Returns:
         Two arrays with the root and aligns indices for each node.
     """
-    nv = coords_ext.shape[0]
+    nv = len(coords_ext)
     roots = np.arange(nv)
     align = np.arange(nv)
 
@@ -340,17 +353,17 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
     # by setting those roots, then down to the bottom. Within each layer, we
     # go left to right, setting alignments as we go.
     if align_left and align_top:
-        idx_sorted = np.lexsort((coords_ext[:, 0], coords_ext[:, 1]))
+        idx_sorted = np.lexsort((coords_ext["x"], coords_ext["y"]))
     elif align_left:
-        idx_sorted = np.lexsort((coords_ext[:, 0], -coords_ext[:, 1]))
+        idx_sorted = np.lexsort((coords_ext["x"], -coords_ext["y"]))
     elif align_top:
-        idx_sorted = np.lexsort((-coords_ext[:, 0], coords_ext[:, 1]))
+        idx_sorted = np.lexsort((-coords_ext["x"], coords_ext["y"]))
     else:
-        idx_sorted = np.lexsort((-coords_ext[:, 0], -coords_ext[:, 1]))
+        idx_sorted = np.lexsort((-coords_ext["x"], -coords_ext["y"]))
 
     yold = -1
     for idx in idx_sorted:
-        y = coords_ext[idx, 1]
+        y = coords_ext["y"][idx]
 
         # New layer
         if y != yold:
@@ -374,7 +387,7 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
         if nneis == 1:
             idx_medians = [idx_neis[0]]
         else:
-            idx_neis_sorted = np.argsort(coords_ext[idx_neis, 0])
+            idx_neis_sorted = np.argsort(coords_ext["x"][idx_neis])
             # Odd number of neighbors, take the central one
             if nneis % 2 == 1:
                 idx_medians = [idx_neis[idx_neis_sorted[nneis // 2]]]
@@ -385,7 +398,8 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
             if not align_left:
                 idx_medians = idx_medians[::-1]
 
-        print("Layer", y, "node", idx, "neighbors:", idx_neis, "medians:", idx_medians)
+        if DEBUG_SUGI:
+            print("Layer", y, "node", idx, "neighbors:", idx_neis, "medians:", idx_medians)
 
         # If two medians found, choose which one to take (or a mixture) based
         # on inner edge preference and left/right alignment (left alignments
@@ -396,10 +410,11 @@ def _make_one_alignment(coords_ext, matrix_ext, ignored_edges, align_left, align
             if (align_top and ((idx_median, idx) in ignored_edges)) or (
                 (not align_top) and ((idx, idx_median) in ignored_edges)
             ):
-                print("Ignored median: type 1 conflict")
+                if DEBUG_SUGI:
+                    print("Ignored median: type 1 conflict")
                 continue
 
-            xmed = coords_ext[idx_median, 0]
+            xmed = coords_ext["x"][idx_median]
             if (r is None) or (align_left and xmed > r) or (not align_left and xmed < r):
                 # Anchor the upper layer alignment to the evolving front
                 align[idx_median] = idx
@@ -450,8 +465,9 @@ def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
         if idx_align is None:
             idx_align = idx
 
-        # Find the left neighbor in the same layer (or yourself). If there's another
-        # alignment chain to your left, we need to make sure to place it first.
+        # This bit is a little awkward. The leftmost chain needs no shift per se, but gets
+        # pushed left by a new chain incoming from the right. So the pushing happens when
+        # we visit the right chain, not the left one.
         idx_left = idx_vertex_left[idx_align]
         if idx_left != idx_align:
             idx_left_root = roots[idx_left]
@@ -460,11 +476,15 @@ def _place_block(idx, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap):
             # left chains first, and then move right. That could be rewritten iteratively that way.
             _place_block(idx_left_root, idx_vertex_left, roots, aligns, sinks, shifts, dx, hgap)
 
-            # Ok there was one (or more) left chains and they are all aligned and placed now.
+            # Ok there was one (or more) left chains and they are all placed (but not necessarily
+            # left pushed).
             sink_left_root = sinks[idx_left_root]
             sink_idx = sinks[idx]
-            # If this root is its own sink (the default) and there's a chain on the left,
-            # we use that sink instead
+
+            # NOTE: This is the only place that sets sinks. The default is that each node is its
+            # own sink. If the sink on this note is unset, or if it's an actual sink of a chain
+            # that is shorter than the one on the left, the left sink becomes the sink of this
+            # chain because it goes deeper.
             if sink_idx == idx:
                 sinks[idx] = sink_idx = sink_left_root
 
@@ -510,21 +530,25 @@ def _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns, hgap=1.0):
 
     dx = defaultdict(lambda: -np.inf)
     sinks = np.arange(len(roots))
-    sink_shifts = defaultdict(lambda: np.inf)
+    sink_shifts = np.inf * np.ones_like(roots, dtype=np.float64)
     roots_idx = np.flatnonzero(roots == np.arange(roots.shape[0]))
-    print("Roots found:", roots_idx)
+    if DEBUG_SUGI:
+        print("Roots found:", roots_idx)
     for i in roots_idx:
-        print("Placing block for root:", i)
+        if DEBUG_SUGI:
+            print("Placing block for root:", i)
         _place_block(i, idx_vertex_left, roots, aligns, sinks, sink_shifts, dx, hgap)
 
-        print("Within for loops of _compact_horizontal")
-        print(dx)
-        print(sinks)
-        print(sink_shifts)
+        if DEBUG_SUGI:
+            print("Within for loops of _compact_horizontal")
+            print(dx)
+            print(sinks)
+            print(sink_shifts)
 
     # Adjust each vertex coordinate based on its sink shift plus its dx from the sink
     x = np.array([dx[root] for root in roots], dtype=np.float64)
-    xshift = np.array([sink_shifts[sinks[root]] for root in roots], dtype=np.float64)
+    xshift = sink_shifts[sinks[roots]]
+    # Chains that did not get shifted can stay where they are
     good_shifts = xshift < np.inf
     x[good_shifts] += xshift[good_shifts]
 
@@ -549,21 +573,22 @@ def _make_and_compact_four_alignments(
     NOTE: That this "compute four times and median" approach works seems
         surprising to many but hey they do usually look good.
     """
-    xs = np.zeros((coords_ext.shape[0], 4), dtype=np.float64)
+    xs = np.zeros((len(coords_ext), 4), dtype=np.float64)
     for i in range(4):
         # top left, top right, bottom left, bottom right
         align_left = i % 2 == 0
         align_top = i < 2
 
-        print(f"Making alignment {i}:")
-        if align_left and align_top:
-            print("  Align top left")
-        elif align_left:
-            print("  Align bottom left")
-        elif align_top:
-            print("  Align top right")
-        else:
-            print("  Align bottom right")
+        if DEBUG_SUGI:
+            print(f"Making alignment {i}:")
+            if align_left and align_top:
+                print("  Align top left")
+            elif align_left:
+                print("  Align bottom left")
+            elif align_top:
+                print("  Align top right")
+            else:
+                print("  Align bottom right")
 
         roots, aligns = _make_one_alignment(
             coords_ext,
@@ -574,13 +599,15 @@ def _make_and_compact_four_alignments(
             nlayers,
         )
 
-        print("  Roots and aligns after alignment:")
-        print(roots)
-        print(aligns)
-        print("  Compacting horizontally...")
+        if DEBUG_SUGI:
+            print("  Roots and aligns after alignment:")
+            print(roots)
+            print(aligns)
+            print("  Compacting horizontally...")
 
         xs[:, i] = _compact_horizontal(coords_ext, idx_vertex_left, roots, aligns)
-        print(xs[:, i])
+        if DEBUG_SUGI:
+            print(xs[:, i])
 
     return xs
 
@@ -607,14 +634,14 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
 
     # Identify mixed-edge crossings
     ignored_edges = []
-    nlayers = coords_ext[:, 1].max() + 1
+    nlayers = coords_ext["y"].max() + 1
     for il in range(nlayers - 1):
         # Find all edges from this layer
-        srcs = np.flatnonzero(coords_ext[:, 1] == il)
+        srcs = np.flatnonzero(coords_ext["y"] == il)
         srcs, tgts = matrix_ext[srcs].nonzero()
         # Filter targets that are in next layer
         # NOTE: Should the not all be by now?
-        idx_next_layer = coords_ext[tgts, 1] == il + 1
+        idx_next_layer = coords_ext["y"][tgts] == il + 1
         srcs = srcs[idx_next_layer]
         tgts = tgts[idx_next_layer]
 
@@ -637,29 +664,31 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
                 # NOTE: for true crossing, the x coordinates should always be different
                 # anyway (previous bits of the algo only assign one x coord per node on
                 # each layer)
-                crossing |= (coords_ext[src1, 0] - coords_ext[src2, 0]) * (
-                    coords_ext[tgt1, 0] - coords_ext[tgt2, 0]
+                crossing |= (coords_ext["x"][src1] - coords_ext["x"][src2]) * (
+                    coords_ext["x"][tgt1] - coords_ext["x"][tgt2]
                 ) < 0
                 ignored_edges.append((srcs[jinner], tgts[jinner]))
 
-    print("Ignored edges (type 1 conflicts):")
-    print(ignored_edges)
+    if DEBUG_SUGI:
+        print("Ignored edges (type 1 conflicts):")
+        print(ignored_edges)
 
     # Prepare an array with the vertex to the left in the same layer
     # For leftmost vertices, it's themselves
-    idx_vertex_left = np.zeros(coords_ext.shape[0], dtype=np.int64)
+    idx_vertex_left = np.zeros(len(coords_ext), dtype=np.int64)
     for il in range(nlayers):
-        idx_layer = np.flatnonzero(coords_ext[:, 1] == il)
+        idx_layer = np.flatnonzero(coords_ext["y"] == il)
         if len(idx_layer) == 0:
             continue
-        idx_sorted = np.argsort(coords_ext[idx_layer, 0])
+        idx_sorted = np.argsort(coords_ext["x"][idx_layer])
         idx_layer_sorted = idx_layer[idx_sorted]
         idx_vertex_left[idx_layer_sorted[0]] = idx_layer_sorted[0]
         if len(idx_layer_sorted) > 1:
             idx_vertex_left[idx_layer_sorted[1:]] = idx_layer_sorted[:-1]
 
-    print("Idx vertex left:")
-    print(idx_vertex_left)
+    if DEBUG_SUGI:
+        print("Idx vertex left:")
+        print(idx_vertex_left)
 
     # Compute the four extreme layouts
     xs = _make_and_compact_four_alignments(
@@ -693,6 +722,7 @@ def sugiyama(
     theta: float = 0.0,
     center: Optional[tuple[float, float]] = (0, 0),
     maxiter_crossing: int = 100,
+    hgap: float = 1.0,
 ):
     """Sugiyama or layered layout for directed graphs.
 
@@ -714,7 +744,8 @@ def sugiyama(
     index = provider.vertices()
     nv = provider.number_of_vertices()
 
-    coords = np.zeros((nv, 2), dtype=np.int64)
+    # We use record arrays to keep y an integer while x is a float
+    coords = np.zeros((nv), dtype=[("x", np.float64), ("y", np.int64)])
 
     # 1. Remove cycles via minimum feedback arc set
     matrix = provider.adjacency_matrix()
@@ -722,24 +753,48 @@ def sugiyama(
     matrix[np.arange(nv), np.arange(nv)] = 0
 
     # TODO: check that this is correct, seems to work on a few examples for now
-    coords[:, 1] = feedback_arc_set_eades(network, matrix)
-    coords[:, 0], waypoints = _set_random_x_values(matrix, coords[:, 1])
+    coords["y"] = feedback_arc_set_eades(network, matrix)
+    coords["x"], waypoints = _set_random_x_values(matrix, coords["y"])
 
     coords_ext, matrix_ext = _to_extended_graph(coords, matrix, waypoints)
 
-    coords_ext[:, 0] = _minimise_edge_crossings(coords_ext, matrix_ext, maxiter=maxiter_crossing)
+    # NOTE: deal with multiple weakly connected components
+    component_memberships = provider.component_memberships(mode="weak")
+    n_components = component_memberships.max() + 1
 
-    print("Coords[:, 0] after crossing minimisation:")
-    print(coords_ext[:, 0])
+    comp_xshift = 0.0
+    for icomp in range(n_components):
+        # Find the nodes in this connected component
+        idx_comp = np.flatnonzero(component_memberships == icomp)
 
-    coords_ext[:, 0] = _brandes_and_koepf(coords_ext, matrix_ext, nv)
+        coords_ext["x"][idx_comp] = _minimise_edge_crossings(
+            coords_ext[idx_comp], matrix_ext[np.ix_(idx_comp, idx_comp)], maxiter=maxiter_crossing
+        )
 
-    print("Coords[:, 0] after Brandes and Koepf:")
-    print(coords_ext[:, 0])
+        if DEBUG_SUGI:
+            print("Coords[:, 0] after crossing minimisation:")
+            print(coords_ext["x"][idx_comp])
+
+        coords_ext["x"][idx_comp] = _brandes_and_koepf(
+            coords_ext[idx_comp], matrix_ext[np.ix_(idx_comp, idx_comp)], nv
+        )
+
+        if DEBUG_SUGI:
+            print("Coords[:, 0] after Brandes and Koepf:")
+            print(coords_ext["x"][idx_comp])
+
+        # Shift this component's coordinates to the right of the previous one
+        # We will never see these nodes again, so modifying in place is fine
+        coords_ext["x"][idx_comp] += comp_xshift
+        comp_xshift = coords_ext["x"][idx_comp].max() + hgap
 
     coords, waypoints = _from_extended_graph(coords_ext, matrix_ext, nv)
 
-    coords = coords.astype(np.float64)
+    # Convert y values to float
+    coords_float = np.zeros((nv, 2), dtype=np.float64)
+    coords_float[:, 0] = coords["x"]
+    coords_float[:, 1] = coords["y"].astype(np.float64)
+    coords = coords_float
 
     rotation_matrix = np.array(
         [
