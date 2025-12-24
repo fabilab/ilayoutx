@@ -720,7 +720,7 @@ def _brandes_and_koepf(coords_ext, matrix_ext, ncoords):
 def sugiyama(
     network,
     theta: float = 0.0,
-    center: Optional[tuple[float, float]] = (0, 0),
+    shift: Optional[tuple[float, float]] = (0, 0),
     maxiter_crossing: int = 100,
     hgap: float = 1.0,
     return_waypoints: bool = True,
@@ -730,7 +730,7 @@ def sugiyama(
     Parameters:
         network: The network to layout.
         theta: Angle in radians to rotate the layout.
-        center: The center of the layout.
+        shift: Shift the layout by this vector after rotation.
     Returns:
         The layout of the network.
     """
@@ -815,7 +815,7 @@ def sugiyama(
 
         coords = coords @ rotation_matrix
 
-        coords += np.array(center, dtype=np.float64)
+        coords += np.array(shift, dtype=np.float64)
 
         layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
 
