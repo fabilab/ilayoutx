@@ -71,6 +71,34 @@ class NetworkXDataProvider(NetworkDataProvider):
 
         return nx.to_numpy_array(self.network, weight=weights)
 
+    def component_memberships(self, mode):
+        """Get the connected component memberships of all vertices.
+
+        Parameters:
+            mode: The mode to use for directed graphs. One of 'weak' or 'strong'.
+        Returns:
+            A numpy array of component memberships for each vertex, starting from 0.
+        """
+        import networkx as nx
+
+        nv = self.number_of_vertices()
+        vertex_series = pd.Series(np.arange(nv), index=self.vertices())
+        membership = np.zeros(nv, dtype=np.int64)
+
+        # Generator of sets of nodes in each connected component
+        if not self.is_directed():
+            generator = nx.connected_components(self.network)
+        elif mode == "weak":
+            generator = nx.weakly_connected_components(self.network)
+        else:
+            generator = nx.strongly_connected_components(self.network)
+
+        for comp_id, node_set in enumerate(generator):
+            for node in node_set:
+                membership[vertex_series[node]] = comp_id
+
+        return membership
+
     def bipartite(self) -> tuple[set]:
         """Get a bipartite split from a bipartite graph."""
         import networkx as nx

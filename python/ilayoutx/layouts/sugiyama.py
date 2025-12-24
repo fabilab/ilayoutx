@@ -723,6 +723,7 @@ def sugiyama(
     center: Optional[tuple[float, float]] = (0, 0),
     maxiter_crossing: int = 100,
     hgap: float = 1.0,
+    return_waypoints: bool = True,
 ):
     """Sugiyama or layered layout for directed graphs.
 
@@ -744,68 +745,81 @@ def sugiyama(
     index = provider.vertices()
     nv = provider.number_of_vertices()
 
-    # We use record arrays to keep y an integer while x is a float
-    coords = np.zeros((nv), dtype=[("x", np.float64), ("y", np.int64)])
+    if nv == 0:
+        layout = pd.DataFrame(columns=["x", "y"], dtype=np.float64)
+        waypoints = {}
+    elif nv == 1:
+        layout = pd.DataFrame([[0.0, 0.0]], index=index, columns=["x", "y"], dtype=np.float64)
+        waypoints = {}
+    else:
+        # We use record arrays to keep y an integer while x is a float
+        coords = np.zeros((nv), dtype=[("x", np.float64), ("y", np.int64)])
 
-    # 1. Remove cycles via minimum feedback arc set
-    matrix = provider.adjacency_matrix()
-    # Ignore loops for computing the layout
-    matrix[np.arange(nv), np.arange(nv)] = 0
+        # 1. Remove cycles via minimum feedback arc set
+        matrix = provider.adjacency_matrix()
+        # Ignore loops for computing the layout
+        matrix[np.arange(nv), np.arange(nv)] = 0
 
-    # TODO: check that this is correct, seems to work on a few examples for now
-    coords["y"] = feedback_arc_set_eades(network, matrix)
-    coords["x"], waypoints = _set_random_x_values(matrix, coords["y"])
+        # TODO: check that this is correct, seems to work on a few examples for now
+        coords["y"] = feedback_arc_set_eades(network, matrix)
+        coords["x"], waypoints = _set_random_x_values(matrix, coords["y"])
 
-    coords_ext, matrix_ext = _to_extended_graph(coords, matrix, waypoints)
+        coords_ext, matrix_ext = _to_extended_graph(coords, matrix, waypoints)
 
-    # NOTE: deal with multiple weakly connected components
-    component_memberships = provider.component_memberships(mode="weak")
-    n_components = component_memberships.max() + 1
+        # NOTE: deal with multiple weakly connected components
+        component_memberships = provider.component_memberships(mode="weak")
+        n_components = component_memberships.max() + 1
 
-    comp_xshift = 0.0
-    for icomp in range(n_components):
-        # Find the nodes in this connected component
-        idx_comp = np.flatnonzero(component_memberships == icomp)
+        comp_xshift = 0.0
+        for icomp in range(n_components):
+            # Find the nodes in this connected component
+            idx_comp = np.flatnonzero(component_memberships == icomp)
 
-        coords_ext["x"][idx_comp] = _minimise_edge_crossings(
-            coords_ext[idx_comp], matrix_ext[np.ix_(idx_comp, idx_comp)], maxiter=maxiter_crossing
+            coords_ext["x"][idx_comp] = _minimise_edge_crossings(
+                coords_ext[idx_comp],
+                matrix_ext[np.ix_(idx_comp, idx_comp)],
+                maxiter=maxiter_crossing,
+            )
+
+            if DEBUG_SUGI:
+                print("Coords[:, 0] after crossing minimisation:")
+                print(coords_ext["x"][idx_comp])
+
+            coords_ext["x"][idx_comp] = _brandes_and_koepf(
+                coords_ext[idx_comp], matrix_ext[np.ix_(idx_comp, idx_comp)], nv
+            )
+
+            if DEBUG_SUGI:
+                print("Coords[:, 0] after Brandes and Koepf:")
+                print(coords_ext["x"][idx_comp])
+
+            # Shift this component's coordinates to the right of the previous one
+            # We will never see these nodes again, so modifying in place is fine
+            coords_ext["x"][idx_comp] += comp_xshift
+            comp_xshift = coords_ext["x"][idx_comp].max() + hgap
+
+        coords, waypoints = _from_extended_graph(coords_ext, matrix_ext, nv)
+
+        # Convert y values to float
+        coords_float = np.zeros((nv, 2), dtype=np.float64)
+        coords_float[:, 0] = coords["x"]
+        coords_float[:, 1] = coords["y"].astype(np.float64)
+        coords = coords_float
+
+        rotation_matrix = np.array(
+            [
+                [np.cos(theta), -np.sin(theta)],
+                [np.sin(theta), np.cos(theta)],
+            ]
         )
 
-        if DEBUG_SUGI:
-            print("Coords[:, 0] after crossing minimisation:")
-            print(coords_ext["x"][idx_comp])
+        coords = coords @ rotation_matrix
 
-        coords_ext["x"][idx_comp] = _brandes_and_koepf(
-            coords_ext[idx_comp], matrix_ext[np.ix_(idx_comp, idx_comp)], nv
-        )
+        coords += np.array(center, dtype=np.float64)
 
-        if DEBUG_SUGI:
-            print("Coords[:, 0] after Brandes and Koepf:")
-            print(coords_ext["x"][idx_comp])
+        layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
 
-        # Shift this component's coordinates to the right of the previous one
-        # We will never see these nodes again, so modifying in place is fine
-        coords_ext["x"][idx_comp] += comp_xshift
-        comp_xshift = coords_ext["x"][idx_comp].max() + hgap
-
-    coords, waypoints = _from_extended_graph(coords_ext, matrix_ext, nv)
-
-    # Convert y values to float
-    coords_float = np.zeros((nv, 2), dtype=np.float64)
-    coords_float[:, 0] = coords["x"]
-    coords_float[:, 1] = coords["y"].astype(np.float64)
-    coords = coords_float
-
-    rotation_matrix = np.array(
-        [
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)],
-        ]
-    )
-
-    coords = coords @ rotation_matrix
-
-    coords += np.array(center, dtype=np.float64)
-
-    layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
-    return layout, waypoints
+    if return_waypoints:
+        return layout, waypoints
+    else:
+        return layout
