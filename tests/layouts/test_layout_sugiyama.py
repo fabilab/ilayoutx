@@ -133,3 +133,6 @@ def test_double_branching(helpers, edgelist, expected):
         expected,
         atol=1e-14,
     )
+
+
+various_dags_data = []
