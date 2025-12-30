@@ -136,8 +136,30 @@ def test_double_branching(helpers, edgelist, expected):
 
 
 various_dags_data = [
+    # Diamond
     (
         [(0, 1), (0, 2), (1, 3), (2, 3)],
-        [[0.5, 0], [0, 1], [1, 1], [-0.5, 2]],
-    )
+        [[0.5, 0], [0, 1], [1, 1], [0.5, 2]],
+    ),
+    # Double diamond
+    (
+        [(0, 1), (0, 2), (1, 3), (2, 3), (3, 4), (3, 5), (4, 6), (5, 6)],
+        [[0.5, 0], [0, 1], [1, 1], [0.5, 2], [0, 3], [1, 3], [0.5, 4]],
+    ),
 ]
+
+
+@pytest.mark.parametrize("edgelist,expected", various_dags_data)
+def test_dags(helpers, edgelist, expected):
+    """Various branching trees."""
+    g = nx.from_edgelist(edgelist, create_using=nx.DiGraph)
+    layout, waypoints = ilx.layouts.sugiyama(g)
+
+    helpers.check_generic_layout(layout)
+    assert layout.shape == (len(g.nodes()), 2)
+    assert all(layout.index == list(g.nodes()))
+    np.testing.assert_allclose(
+        layout.values,
+        expected,
+        atol=1e-14,
+    )
