@@ -1,0 +1,12 @@
+image: archlinux
+packages:
+  - python
+sources:
+  - https://git.sr.ht/~iosonofabio/ilayoutx
+tasks:
+  - setup: |
+      cd ilayoutx
+      python -m venv .venv
+  - build: |
+      cd ilayoutx
+      .venv/bin/pip install .
