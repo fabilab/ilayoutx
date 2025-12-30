@@ -1,0 +1,18 @@
+image: alpine/latest
+packages:
+  - python
+sources:
+  - https://git.sr.ht/~iosonofabio/ilayoutx
+tasks:
+  - setup: |
+      cd ilayoutx
+      python -m venv .venv
+  - build: |
+      cd ilayoutx
+      .venv/bin/pip install .
+  - setup_test: |
+      cd ilayoutx
+      .venv/bin/pip install --group test
+  - test: |
+      cd ilayoutx
+      .venv/bin/pytest
