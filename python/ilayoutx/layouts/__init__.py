@@ -1,27 +1,27 @@
 """Node layout algorithms for ilayoutx."""
 
-from .basic import (
+from ilayoutx.layouts.basic import (
     line,
     circle,
     shell,
     spiral,
     random,
 )
-from .bipartite import (
+from ilayoutx.layouts.bipartite import (
     bipartite,
     multipartite,
 )
-from .grid import grid
-from .kamada_kawai import kamada_kawai
-from .arf import arf
-from .forceatlas2 import forceatlas2
-from .geometric import geometric
-from .spring import spring
-from .mds import multidimensional_scaling
-from .gem import graph_embedder
-from .lgl import large_graph_layout
-from .umap import umap
-from .sugiyama import sugiyama
+from ilayoutx.layouts.grid import grid
+from ilayoutx.layouts.kamada_kawai import kamada_kawai
+from ilayoutx.layouts.arf import arf
+from ilayoutx.layouts.forceatlas2 import forceatlas2
+from ilayoutx.layouts.geometric import geometric
+from ilayoutx.layouts.spring import spring
+from ilayoutx.layouts.mds import multidimensional_scaling
+from ilayoutx.layouts.gem import graph_embedder
+from ilayoutx.layouts.lgl import large_graph_layout
+from ilayoutx.layouts.umap import umap
+from ilayoutx.layouts.sugiyama import sugiyama
 
 
 __all__ = (
