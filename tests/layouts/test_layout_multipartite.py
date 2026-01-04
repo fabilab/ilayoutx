@@ -1,4 +1,4 @@
-"""Test bipartite layouts."""
+"""Test multipartite layouts."""
 
 import pytest
 import numpy as np
@@ -26,13 +26,20 @@ first_data = [
 ]
 
 
-@pytest.mark.parametrize("first,distance,theta,expected", first_data)
-def test_bipartite(helpers, network, first, distance, theta, expected):
-    """Test bipartite layout."""
+multi_data = [
+    ([[0, 1, 2], [3, 4, 5]], 1, 0, [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]),
+    ([[0, 1, 2], [3, 4, 5]], 2, np.pi / 2, [[0, 0], [1, 0], [2, 0], [0, -2], [1, -2], [2, -2]]),
+    ([[0, 1, 2], [3, 4], [5]], 2, np.pi / 2, [[0, 0], [1, 0], [2, 0], [0, -2], [1, -2], [0, -4]]),
+]
+
+
+@pytest.mark.parametrize("nlist,distance,theta,expected", multi_data)
+def test_multipartite(helpers, network, nlist, distance, theta, expected):
+    """Test multipartite layout."""
 
     expected = np.array(expected)
 
-    layout = ilx.layouts.bipartite(network, first=first, distance=distance, theta=theta)
+    layout = ilx.layouts.multipartite(network, nlist, distance=distance, theta=theta)
     helpers.check_generic_layout(layout)
     assert layout.shape == (6, 2)
     assert all(layout.index == list(network.nodes()))
