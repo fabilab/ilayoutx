@@ -43,6 +43,8 @@ pip install ilayoutx
   - multidimensional scaling (MDS)
 
 
+## Issues
+Issues are tracked on SourceHut: https://todo.sr.ht/~iosonofabio/ilayoutx
 
 ## Rationale
 The layout code is in Rust and exposed to Python via the amazing [PyO3](https://pyo3.rs/), with the goal to combine speed (by the machine) with comfort (for the user).
