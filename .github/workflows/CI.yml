@@ -62,21 +62,7 @@ jobs:
           pip install -U pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
-          echo "Check out site-packages"
-          ls .venv/lib/python3.13/site-packages
-          echo "Check out site-packages/ilayoutx"
-          ls .venv/lib/python3.13/site-packages/ilayoutx
-          echo "Check out folder with layouts"
-          ls .venv/lib/python3.13/site-packages/ilayoutx/layouts
-          echo "Test importing"
-          python -c "import ilayoutx as ilx"
-          echo "Test importing layouts"
-          python -c "from ilayoutx import layouts"
-          echo "Test importing sugiyama, v1"
-          python -c "from ilayoutx.layouts.sugiyama_layouts import sugiyama"
-          echo "Test importing sugiyama, v2"
-          python -c "from ilayoutx.layouts import sugiyama"
-          echo "Running pytest"
+          echo "Run pytest"
           pytest
       - name: pytest
         if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
@@ -94,6 +80,7 @@ jobs:
           run: |
             set -e
             pip3 install ilayoutx --find-links dist --force-reinstall
+            echo "Run pytest"
             pytest
 
   musllinux:
@@ -141,6 +128,7 @@ jobs:
             pip install ilayoutx --find-links dist
             #pip install ilayoutx --no-index --find-links dist --force-reinstall
             pip install --group test
+            echo "Run pytest"
             pytest
       - name: pytest
         if: ${{ !startsWith(matrix.platform.target, 'x86') }}
@@ -158,6 +146,7 @@ jobs:
             pip install -U pip
             pip install --group test
             pip install ilayoutx --find-links dist --force-reinstall
+            echo "Run pytest"
             pytest
 
   windows:
@@ -196,6 +185,7 @@ jobs:
           python.exe -m pip install --upgrade pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
+          echo "Run pytest"
           pytest
 
   macos:
@@ -231,6 +221,7 @@ jobs:
           pip install -U pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
+          echo "Run pytest"
           pytest
 
   sdist:
