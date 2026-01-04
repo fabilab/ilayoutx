@@ -45,7 +45,9 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          # This creates SO MANY headaches
+          sccache: false
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -169,7 +171,8 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          sccache: false
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -207,7 +210,8 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          sccache: false
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
