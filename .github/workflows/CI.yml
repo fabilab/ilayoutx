@@ -62,8 +62,11 @@ jobs:
           pip install -U pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
+          echo "Test importing"
           python -c "import ilayoutx as ilx"
+          echo "Test importing layouts"
           python -c "from ilayoutx import layouts"
+          echo "Test importing sugiyama"
           python -c "from ilayoutx.layouts import sugiyama"
           pytest
       #- name: pytest
