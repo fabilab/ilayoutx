@@ -44,7 +44,8 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --interpreter 'python3.13'
+          #args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
       - name: Upload wheels
@@ -66,8 +67,11 @@ jobs:
           python -c "import ilayoutx as ilx"
           echo "Test importing layouts"
           python -c "from ilayoutx import layouts"
-          echo "Test importing sugiyama"
+          echo "Test importing sugiyama, v1"
+          python -c "from ilayoutx.layouts.sugiyama_layouts import sugiyama"
+          echo "Test importing sugiyama, v2"
           python -c "from ilayoutx.layouts import sugiyama"
+          echo "Running pytest"
           pytest
       #- name: pytest
       #  if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
