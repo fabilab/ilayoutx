@@ -30,7 +30,7 @@ def spring(
     ] = None,
     optimal_distance: Optional[float] = None,
     radius: float = 1.0,
-    center: Optional[tuple[float, float]] = (0, 0),
+    center: tuple[float, float] = (0, 0),
     gravity: float = 1.0,
     method="force",
     etol: float = 1e-4,
@@ -65,7 +65,7 @@ def spring(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)

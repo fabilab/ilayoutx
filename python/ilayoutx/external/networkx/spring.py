@@ -1,8 +1,6 @@
 """Networkx-derived support code for spring layout."""
 
-import numpy as np
-import scipy as sp
-
+# The code was modified from NetworkX library:
 
 # NetworkX is distributed with the 3-clause BSD license.
 #
@@ -42,9 +40,19 @@ import scipy as sp
 #    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import numpy as np
+
 
 def _fruchterman_reingold(
-    A, k=None, pos=None, fixed=None, max_iter=50, threshold=1e-4, seed=None
+    A,
+    k=None,
+    pos=None,
+    fixed=None,
+    max_iter=50,
+    threshold=1e-4,
+    seed=None,
+    exponent_attraction: float = 1.0,
+    exponent_repulsion: float = -2.0,
 ) -> None:
     """Fruchterman-Reingold force-directed layout algorithm.
 
@@ -74,8 +82,8 @@ def _fruchterman_reingold(
 
         # "forces"
         ratio = distance / k
-        repulsion = 1.0 / ratio / ratio
-        attraction = A * ratio
+        repulsion = ratio**exponent_repulsion
+        attraction = A * (ratio**exponent_attraction)
         force = repulsion - attraction
 
         # displacement as a result
