@@ -31,7 +31,10 @@ def spring(
     optimal_distance: Optional[float] = None,
     radius: float = 1.0,
     center: tuple[float, float] = (0, 0),
+    scale: float = 1.0,
     gravity: float = 1.0,
+    exponent_attraction: float = 1.0,
+    exponent_repulsion: float = -2.0,
     method="force",
     etol: float = 1e-4,
     max_iter: int = 50,
@@ -45,7 +48,10 @@ def spring(
         optimal_distance: Optimal distance between nodes. If None, set to sqrt(1/n).
         radius: The approximate radius of the layout.
         center: The center of the layout.
+        scale: Scaling factor for the layout. The larger of x- and y-ranges will be equal to scale.
         gravity: Gravity force scaling to apply towards the center.
+        exponent_attraction: Exponent for the attraction force (1.0 means spring-like attraction).
+        exponent_repulsion: Exponent for the repulsion force (-2.0 means gravity-like repulsion).
         method: The method to use. Currently only "force" is supported.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         max_iter: Max iterations before termination of the algorithm.
@@ -90,12 +96,19 @@ def spring(
             threshold=etol,
             max_iter=max_iter,
             seed=seed,
+            exponent_attraction=exponent_attraction,
+            exponent_repulsion=exponent_repulsion,
         )
         coords = initial_coords
         rmax = np.linalg.norm(coords, axis=1).max()
         coords *= radius / rmax
 
-    coords += np.array(center, dtype=np.float64)
+    current_center = coords.mean(axis=0)
+    coords += np.array(center, dtype=np.float64) - current_center
+
+    current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
+    if current_scale > 0:
+        coords *= scale / current_scale
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
