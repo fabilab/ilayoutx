@@ -63,6 +63,12 @@ jobs:
           pip install -U pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
+          echo "Check out site-packages"
+          ls .venv/lib/python3.13/site-packages
+          echo "Check out site-packages/ilayoutx"
+          ls .venv/lib/python3.13/site-packages/ilayoutx
+          echo "Check out folder with layouts"
+          ls .venv/lib/python3.13/site-packages/ilayoutx/layouts
           echo "Test importing"
           python -c "import ilayoutx as ilx"
           echo "Test importing layouts"
