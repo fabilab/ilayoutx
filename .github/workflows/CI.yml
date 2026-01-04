@@ -25,8 +25,8 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
-          - runner: ubuntu-22.04
-            target: x86
+          #- runner: ubuntu-22.04
+          #  target: x86
           #- runner: ubuntu-22.04
           #  target: aarch64
           #- runner: ubuntu-22.04
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: 3.13
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -62,24 +62,27 @@ jobs:
           pip install -U pip
           pip install --group test
           pip install ilayoutx --find-links dist --force-reinstall
+          python -c "import ilayoutx as ilx"
+          python -c "from ilayoutx import layouts"
+          python -c "from ilayoutx.layouts import sugiyama"
           pytest
-      - name: pytest
-        if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
-        uses: uraimo/run-on-arch-action@v2
-        with:
-          arch: ${{ matrix.platform.target }}
-          distro: ubuntu22.04
-          githubToken: ${{ github.token }}
-          # NOTE: cannot update pip this way because it comes from Ubuntu and is too old
-          # for --group test, so we manually select a couple key packages for testing
-          install: |
-            apt-get update
-            apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install networkx pytest
-          run: |
-            set -e
-            pip3 install ilayoutx --find-links dist --force-reinstall
-            pytest
+      #- name: pytest
+      #  if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
+      #  uses: uraimo/run-on-arch-action@v2
+      #  with:
+      #    arch: ${{ matrix.platform.target }}
+      #    distro: ubuntu22.04
+      #    githubToken: ${{ github.token }}
+      #    # NOTE: cannot update pip this way because it comes from Ubuntu and is too old
+      #    # for --group test, so we manually select a couple key packages for testing
+      #    install: |
+      #      apt-get update
+      #      apt-get install -y --no-install-recommends python3 python3-pip
+      #      pip3 install networkx pytest
+      #    run: |
+      #      set -e
+      #      pip3 install ilayoutx --find-links dist --force-reinstall
+      #      pytest
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
@@ -88,8 +91,8 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
-          - runner: ubuntu-22.04
-            target: x86
+          #- runner: ubuntu-22.04
+          #  target: x86
           #- runner: ubuntu-22.04
           #  target: aarch64
           #- runner: ubuntu-22.04
@@ -127,23 +130,23 @@ jobs:
             #pip install ilayoutx --no-index --find-links dist --force-reinstall
             pip install --group test
             pytest
-      - name: pytest
-        if: ${{ !startsWith(matrix.platform.target, 'x86') }}
-        uses: uraimo/run-on-arch-action@v2
-        with:
-          arch: ${{ matrix.platform.target }}
-          distro: alpine_latest
-          githubToken: ${{ github.token }}
-          install: |
-            apk add py3-virtualenv
-          run: |
-            set -e
-            python3 -m virtualenv .venv
-            source .venv/bin/activate
-            pip install -U pip
-            pip install --group test
-            pip install ilayoutx --find-links dist --force-reinstall
-            pytest
+      #- name: pytest
+      #  if: ${{ !startsWith(matrix.platform.target, 'x86') }}
+      #  uses: uraimo/run-on-arch-action@v2
+      #  with:
+      #    arch: ${{ matrix.platform.target }}
+      #    distro: alpine_latest
+      #    githubToken: ${{ github.token }}
+      #    install: |
+      #      apk add py3-virtualenv
+      #    run: |
+      #      set -e
+      #      python3 -m virtualenv .venv
+      #      source .venv/bin/activate
+      #      pip install -U pip
+      #      pip install --group test
+      #      pip install ilayoutx --find-links dist --force-reinstall
+      #      pytest
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
