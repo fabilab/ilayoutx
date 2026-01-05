@@ -102,6 +102,7 @@ def test_spring_fixed(helpers, max_iter, fixed):
     )
 
     # NetworkX Bug workaround: fixed cannot be an empty list.
+    # https://github.com/networkx/networkx/pull/8446
     nx_kwargs = {}
     if fixed:
         nx_kwargs["fixed"] = fixed
