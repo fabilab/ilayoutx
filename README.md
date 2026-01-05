@@ -1,6 +1,7 @@
 [![Github Actions](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml/badge.svg)](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml)
 [![builds.sr.ht status](https://builds.sr.ht/~iosonofabio/ilayoutx.svg)](https://builds.sr.ht/~iosonofabio/ilayoutx?)
 [![PyPI - Version](https://img.shields.io/pypi/v/ilayoutx)](https://pypi.org/project/ilayoutx/)
+![Coverage](coverage-badge.svg)
 
 
 # ilayoutx
