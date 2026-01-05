@@ -30,13 +30,12 @@ def spring(
         | pd.DataFrame
     ] = None,
     optimal_distance: Optional[float] = None,
-    radius: float = 1.0,
+    fixed: Optional[Sequence[Hashable]] = None,
     center: tuple[float, float] = (0, 0),
     scale: float = 1.0,
     gravity: float = 1.0,
     exponent_attraction: float = 1.0,
     exponent_repulsion: float = -2.0,
-    fixed: Optional[Sequence[Hashable]] = None,
     method="force",
     etol: float = 1e-4,
     max_iter: int = 50,
@@ -48,7 +47,9 @@ def spring(
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes.
         optimal_distance: Optimal distance between nodes. If None, set to sqrt(1/n).
-        radius: The approximate radius of the layout.
+        fixed: Nodes to keep fixed during layout. Can be a list of node IDs of a dict of bools
+            where True means to keep the node fixed. If this argument is not None and not empty,
+            the following arguments "center" and "scale" are ignored.
         center: The center of the layout.
         scale: Scaling factor for the layout. The larger of x- and y-ranges will be equal to scale.
         gravity: Gravity force scaling to apply towards the center.
@@ -73,28 +74,30 @@ def spring(
     nv = provider.number_of_vertices()
 
     if fixed is not None:
-        fixed_bool = pd.Series(np.zeros(nv, dtype=bool), index=index)
-        if isinstance(fixed, dict):
-            for key, val in fixed.items():
-                if val:
-                    fixed_bool.at[key] = True
+        if len(fixed) == 0:
+            fixed = None
         else:
-            fixed_bool[fixed] = True
-        fixed = fixed_bool.values
-        del fixed_bool
+            fixed_bool = pd.Series(np.zeros(nv, dtype=bool), index=index)
+            if isinstance(fixed, dict):
+                for key, val in fixed.items():
+                    if val:
+                        fixed_bool.at[key] = True
+            else:
+                fixed_bool[fixed] = True
+            fixed = fixed_bool.values
+            del fixed_bool
 
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
-    if nv == 1:
-        coords = np.array([[0.0, 0.0]], dtype=np.float64)
+    initial_coords = _format_initial_coords(
+        initial_coords,
+        index=index,
+        fallback=lambda: random_rust(nv, seed=seed),
+    )
+    if ((fixed is not None) and fixed.all()) or (nv == 1):
+        coords = initial_coords
     else:
-        initial_coords = _format_initial_coords(
-            initial_coords,
-            index=index,
-            fallback=lambda: random_rust(nv, seed=seed),
-        )
-
         # TODO: allow weights
         adjacency = provider.adjacency_matrix()
 
@@ -114,15 +117,14 @@ def spring(
             fixed=fixed,
         )
         coords = initial_coords
-        rmax = np.linalg.norm(coords, axis=1).max()
-        coords *= radius / rmax
 
-    current_center = coords.mean(axis=0)
-    coords += np.array(center, dtype=np.float64) - current_center
+    if fixed is None:
+        current_center = coords.mean(axis=0)
+        coords += np.array(center, dtype=np.float64) - current_center
 
-    current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
-    if current_scale > 0:
-        coords *= scale / current_scale
+        current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
+        if current_scale > 0:
+            coords *= scale / current_scale
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
