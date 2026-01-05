@@ -1,3 +1,8 @@
+[![Github Actions](https://github.com/fabilab/iplotx/actions/workflows/test.yml/badge.svg)](https://github.com/fabilab/iplotx/actions/workflows/test.yml)
+[![builds.sr.ht status](https://builds.sr.ht/~iosonofabio/ilayoutx.svg)](https://builds.sr.ht/~iosonofabio/ilayoutx?)
+[![PyPI - Version](https://img.shields.io/pypi/v/ilayoutx)](https://pypi.org/project/ilayoutx/)
+
+
 # ilayoutx
 
 Compute fast network layouts. Intended as the upstream companion for [iplotx](https://github.com/fabilab/iplotx).
