@@ -1,4 +1,4 @@
-[![Github Actions](https://github.com/fabilab/iplotx/actions/workflows/test.yml/badge.svg)](https://github.com/fabilab/iplotx/actions/workflows/test.yml)
+[![Github Actions](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml/badge.svg)](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml)
 [![builds.sr.ht status](https://builds.sr.ht/~iosonofabio/ilayoutx.svg)](https://builds.sr.ht/~iosonofabio/ilayoutx?)
 [![PyPI - Version](https://img.shields.io/pypi/v/ilayoutx)](https://pypi.org/project/ilayoutx/)
 
@@ -14,7 +14,10 @@ Compute fast network layouts. Intended as the upstream companion for [iplotx](ht
 pip install ilayoutx
 ```
 
-(not working yet)
+## Resources
+ - **Issues**: https://todo.sr.ht/~iosonofabio/ilayoutx
+ - **Mailing list**: https://lists.sr.ht/~iosonofabio/ilayoutx-dev
+ - **Pull Requests**: This project prefers patches via the mailing list, however PRs on GitHub are currently accepted.
 
 ## Layouts
 - **Geometric**:
@@ -38,18 +41,18 @@ pip install ilayoutx
 - **Machine learning**:
   - UMAP: probably somewhat buggy
 
+- **Directed acyclic graphs (DAGs)**:
+  - Sugiyama including edge routing.
+
 - **Tree-like**:
   - (TODO: Reingold-Tilford)
-  - (TODO: Sugiyama)
 
 - **Other**:
   - bipartite
+  - multipartite
   - random (supports vertex sizes)
   - multidimensional scaling (MDS)
 
-
-## Issues
-Issues are tracked on SourceHut: https://todo.sr.ht/~iosonofabio/ilayoutx
 
 ## Rationale
 The layout code is in Rust and exposed to Python via the amazing [PyO3](https://pyo3.rs/), with the goal to combine speed (by the machine) with comfort (for the user).
