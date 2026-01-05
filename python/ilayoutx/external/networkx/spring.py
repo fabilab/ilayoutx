@@ -94,6 +94,10 @@ def _fruchterman_reingold(
         np.clip(length, a_min=0.01, a_max=None, out=length)
         delta_pos = np.einsum("ij,i->ij", displacement, t / length)
 
+        if fixed is not None:
+            # don't change positions of fixed nodes
+            delta_pos[fixed] = 0.0
+
         pos += delta_pos
 
         # cool temperature

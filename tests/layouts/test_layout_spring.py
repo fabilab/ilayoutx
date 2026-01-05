@@ -70,3 +70,53 @@ def test_spring_basic(helpers, max_iter):
         pos_nx.values,
         atol=1e-2 if max_iter >= 20 else 1e-6,
     )
+
+
+@pytest.mark.parametrize(
+    "max_iter,fixed",
+    [(0, []), (1, []), (10, []), (30, []), (0, [0]), (1, [0]), (10, [0]), (30, [0])],
+)
+def test_spring_fixed(helpers, max_iter, fixed):
+    """Test basic spring layout against NetworkX's internal implementation.
+
+    NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause
+    small differences. We try to deal with that as well as possible here.
+    """
+
+    g = nx.path_graph(4)
+
+    initial_coords = {
+        0: (0.0, 0.0),
+        1: (1.0, 0.0),
+        2: (1.0, 1.0),
+        3: (2.0, 1.0),
+    }
+
+    # NOTE:This scale thing is kind of awkward, perhaps broken in networkx
+    pos_ilx = ilx.layouts.spring(
+        g,
+        initial_coords=initial_coords,
+        max_iter=max_iter,
+        scale=2.0,
+        fixed=fixed,
+    )
+
+    # NetworkX Bug workaround: fixed cannot be an empty list.
+    nx_kwargs = {}
+    if fixed:
+        nx_kwargs["fixed"] = fixed
+    pos_nx = nx.spring_layout(
+        g,
+        pos=initial_coords,
+        iterations=max_iter,
+        **nx_kwargs,
+    )
+    pos_nx = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
+    pos_nx.columns = pos_ilx.columns
+
+    # NOTE: For large max_iter, numerical precision can cause small differences
+    np.testing.assert_allclose(
+        pos_ilx.values,
+        pos_nx.values,
+        atol=1e-2 if max_iter >= 20 else 1e-6,
+    )

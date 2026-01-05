@@ -1,5 +1,6 @@
 from typing import (
     Optional,
+    Sequence,
 )
 from collections.abc import (
     Hashable,
@@ -35,6 +36,7 @@ def spring(
     gravity: float = 1.0,
     exponent_attraction: float = 1.0,
     exponent_repulsion: float = -2.0,
+    fixed: Optional[Sequence[Hashable]] = None,
     method="force",
     etol: float = 1e-4,
     max_iter: int = 50,
@@ -70,6 +72,17 @@ def spring(
     index = provider.vertices()
     nv = provider.number_of_vertices()
 
+    if fixed is not None:
+        fixed_bool = pd.Series(np.zeros(nv, dtype=bool), index=index)
+        if isinstance(fixed, dict):
+            for key, val in fixed.items():
+                if val:
+                    fixed_bool.at[key] = True
+        else:
+            fixed_bool[fixed] = True
+        fixed = fixed_bool.values
+        del fixed_bool
+
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
@@ -98,6 +111,7 @@ def spring(
             seed=seed,
             exponent_attraction=exponent_attraction,
             exponent_repulsion=exponent_repulsion,
+            fixed=fixed,
         )
         coords = initial_coords
         rmax = np.linalg.norm(coords, axis=1).max()
