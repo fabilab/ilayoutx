@@ -154,7 +154,10 @@ def test_shell(helpers, theta, nodes_by_shell, expected):
     g.add_nodes_from(nodes)
     layout = ilx.layouts.shell(g, nodes_by_shell, theta=theta)
 
-    expected = np.array(expected)
+    if len(expected) == 0:
+        expected = np.zeros((nv, 2), dtype=float)
+    else:
+        expected = np.array(expected)
 
     helpers.check_generic_layout(layout)
     assert layout.shape == (nv, 2)
@@ -167,6 +170,16 @@ def test_shell(helpers, theta, nodes_by_shell, expected):
 
 
 spiraldata = [
+    (
+        0,
+        0,
+        [],
+    ),
+    (
+        0,
+        1,
+        [[0, 0]],
+    ),
     (
         0,
         0.3,
@@ -193,7 +206,10 @@ def test_spiral(helpers, theta, slope, expected):
 
     layout = ilx.layouts.spiral(g, slope=slope, theta=theta)
 
-    expected = np.array(expected)
+    if len(expected) == 0:
+        expected = np.zeros((nv, 2), dtype=float)
+    else:
+        expected = np.array(expected)
 
     helpers.check_generic_layout(layout)
     assert layout.shape == (nv, 2)

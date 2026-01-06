@@ -228,7 +228,7 @@ def spiral(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=float)
 
     if nv == 1:
         coords = np.array([[center[0], center[1]]], dtype=np.float64)
