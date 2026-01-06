@@ -32,7 +32,7 @@ def spring(
     optimal_distance: Optional[float] = None,
     fixed: Optional[Sequence[Hashable]] = None,
     center: tuple[float, float] = (0, 0),
-    scale: float = 1.0,
+    scale: Optional[float] = 1.0,
     gravity: float = 1.0,
     exponent_attraction: float = 1.0,
     exponent_repulsion: float = -2.0,
@@ -111,7 +111,6 @@ def spring(
             pos=initial_coords,
             threshold=etol,
             max_iter=max_iter,
-            seed=seed,
             exponent_attraction=exponent_attraction,
             exponent_repulsion=exponent_repulsion,
             fixed=fixed,
@@ -122,9 +121,10 @@ def spring(
         current_center = coords.mean(axis=0)
         coords += np.array(center, dtype=np.float64) - current_center
 
-        current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
-        if current_scale > 0:
-            coords *= scale / current_scale
+        if scale is not None:
+            current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
+            if current_scale > 0:
+                coords *= scale / current_scale
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

@@ -28,8 +28,8 @@ def arf(
         | np.ndarray
         | pd.DataFrame
     ] = None,
-    radius: float = 1.0,
-    center: Optional[tuple[float, float]] = (0, 0),
+    scaling: Optional[float] = 1.0,
+    center: tuple[float, float] = (0, 0),
     spring_strength: float = 1.1,
     etol: float = 1e-6,
     dt: float = 1e-3,
@@ -41,7 +41,7 @@ def arf(
     Parameters:
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes.
-        radius: The radius of the circular layout space.
+        scaling: Strength of the repulsive forces. Larger values spread the nodes further apart.
         spring_strength: Strength of springs between connected nodes. Should be larger than 1.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         dt: Time step for force differential equation simulations.
@@ -65,7 +65,7 @@ def arf(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=float)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
@@ -84,12 +84,11 @@ def arf(
             index,
             edges,
             pos=initial_coords,
-            scaling=radius,
+            scaling=scaling,
             a=spring_strength,
             etol=etol,
             dt=dt,
             max_iter=max_iter,
-            seed=seed,
         )
         coords = initial_coords
 

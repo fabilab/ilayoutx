@@ -1,16 +1,5 @@
 """Networkx-derived support code for the arf layout."""
-
-from typing import (
-    Optional,
-    Sequence,
-)
-from collections.abc import (
-    Hashable,
-)
-import warnings
-import numpy as np
-import pandas as pd
-
+# Much of the following code is adapted from NetworkX
 
 # NetworkX is distributed with the 3-clause BSD license.
 #
@@ -49,19 +38,28 @@ import pandas as pd
 #    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 #    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+from typing import (
+    Sequence,
+)
+from collections.abc import (
+    Hashable,
+)
+import warnings
+import numpy as np
+import pandas as pd
+
+
 def arf_networkx(
     N,
     index: list,
     edges: Sequence[tuple[Hashable, Hashable]],
     pos: np.ndarray,
-    scaling=1,
-    a=1.1,
-    etol=1e-6,
-    dt=1e-3,
-    max_iter=1000,
-    *,
-    seed=None,
-    store_pos_as=None,
+    scaling: float = 1.0,
+    a: float = 1.1,
+    etol: float = 1e-6,
+    dt: float = 1e-3,
+    max_iter: int = 1000,
 ) -> None:
     """Arf layout for networkx
 
@@ -88,17 +86,6 @@ def arf_networkx(
         Time step for force differential equation simulations.
     max_iter : int
         Max iterations before termination of the algorithm.
-    seed : int, RandomState instance or None  optional (default=None)
-        Set the random state for deterministic node layouts.
-        If int, `seed` is the seed used by the random number generator,
-        if numpy.random.RandomState instance, `seed` is the random
-        number generator,
-        if None, the random number generator is the RandomState instance used
-        by numpy.random.
-    store_pos_as : str, default None
-        If non-None, the position of each node will be stored on the graph as
-        an attribute with this string as its name, which can be accessed with
-        ``G.nodes[...][store_pos_as]``. The function still returns the dictionary.
 
     Returns
     -------
@@ -139,12 +126,12 @@ def arf_networkx(
         # Does not affect the computation due to nansum
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            change = K[..., np.newaxis] * diff - rho / A * diff
-        change = np.nansum(change, axis=0)
+            delta_pos = K[..., np.newaxis] * diff - rho / A * diff
+        delta_pos = np.nansum(delta_pos, axis=0)
 
-        pos += change * dt
+        pos += delta_pos * dt
 
-        error = np.linalg.norm(change, axis=-1).sum()
+        error = np.linalg.norm(delta_pos, axis=-1).sum()
         if n_iter > max_iter:
             break
         n_iter += 1
