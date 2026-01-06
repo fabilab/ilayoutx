@@ -20,7 +20,7 @@ def test_spring_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_singleton(helpers, center):
+def test_spring_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
