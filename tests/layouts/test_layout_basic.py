@@ -153,8 +153,6 @@ def test_shell(helpers, theta, nodes_by_shell, expected):
     g = nx.Graph()
     g.add_nodes_from(nodes)
     layout = ilx.layouts.shell(g, nodes_by_shell, theta=theta)
-    print(nodes)
-    print(layout)
 
     expected = np.array(expected)
 
@@ -165,4 +163,43 @@ def test_shell(helpers, theta, nodes_by_shell, expected):
         layout.values,
         expected,
         atol=1e-14,
+    )
+
+
+spiraldata = [
+    (
+        0,
+        0.3,
+        [
+            [-0.098167, -0.019057],
+            [0.056732, -0.191785],
+            [0.295570, -0.051368],
+            [0.315688, 0.245644],
+            [0.120245, 0.485326],
+            [-0.184569, 0.570907],
+            [-0.496693, 0.493251],
+            [-0.747226, 0.285749],
+            [-0.899988, -0.004605],
+            [-0.943271, -0.332025],
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("theta,slope,expected", spiraldata)
+def test_spiral(helpers, theta, slope, expected):
+    nv = len(expected)
+    g = nx.path_graph(nv)
+
+    layout = ilx.layouts.spiral(g, slope=slope, theta=theta)
+
+    expected = np.array(expected)
+
+    helpers.check_generic_layout(layout)
+    assert layout.shape == (nv, 2)
+    assert all(layout.index == list(g.nodes()))
+    np.testing.assert_allclose(
+        layout.values,
+        expected,
+        atol=1e-4,
     )

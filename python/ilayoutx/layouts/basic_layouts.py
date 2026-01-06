@@ -207,7 +207,8 @@ def spiral(
     network,
     radius: float = 1.0,
     center: tuple[float, float] = (0.0, 0.0),
-    slope: float = 1.0,
+    slope: float = 0.25,
+    exponent: float = 1.0,
     theta: float = 0.0,
 ):
     """Spiral layout.
@@ -217,7 +218,8 @@ def spiral(
         radius: The radius of the shell.
         center: The center of the shell as a tuple (x, y).
         slope: The slope of the spiral.
-        theta: The angle of the shell in radians.
+        exponent: The exponent of the spiral.
+        theta: The initial angle of the layout in radians.
     Returns:
         A pandas.DataFrame with the layout.
     """
@@ -228,7 +230,13 @@ def spiral(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"])
 
-    coords = spiral_rust(nv, radius, center, slope, np.degrees(theta))
+    if nv == 1:
+        coords = np.array([[center[0], center[1]]], dtype=np.float64)
+    else:
+        coords = spiral_rust(nv, slope, np.degrees(theta), exponent)
+        rmax = np.linalg.norm(coords, axis=1).max()
+        coords *= radius / rmax
+        coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
 
