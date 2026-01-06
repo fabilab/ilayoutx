@@ -50,7 +50,7 @@ def spring(
         fixed: Nodes to keep fixed during layout. Can be a list of node IDs of a dict of bools
             where True means to keep the node fixed. If this argument is not None and not empty,
             the following arguments "center" and "scale" are ignored.
-        center: The center of the layout.
+        center: Recenter the layout around this point.
         scale: Scaling factor for the layout. The larger of x- and y-ranges will be equal to scale.
         gravity: Gravity force scaling to apply towards the center.
         exponent_attraction: Exponent for the attraction force (1.0 means spring-like attraction).
@@ -111,6 +111,7 @@ def spring(
             pos=initial_coords,
             threshold=etol,
             max_iter=max_iter,
+            seed=seed,
             exponent_attraction=exponent_attraction,
             exponent_repulsion=exponent_repulsion,
             fixed=fixed,
@@ -118,8 +119,8 @@ def spring(
         coords = initial_coords
 
     if fixed is None:
-        current_center = coords.mean(axis=0)
-        coords += np.array(center, dtype=np.float64) - current_center
+        if center is not None:
+            coords += np.array(center, dtype=np.float64) - coords.mean(axis=0)
 
         if scale is not None:
             current_scale = (coords.max(axis=0) - coords.min(axis=0)).max()
