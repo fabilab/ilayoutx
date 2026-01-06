@@ -25,7 +25,7 @@ pip install ilayoutx
   - line
   - circle (supports vertex sizes)
   - shell
-  - spiral (WIP)
+  - spiral
 
 - **Grid or lattice**:
   - square
