@@ -7,9 +7,6 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
-    circle,
-)
 from ..ingest import (
     network_library,
     data_providers,
@@ -78,7 +75,7 @@ def forceatlas2(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
@@ -111,7 +108,8 @@ def forceatlas2(
         )
         coords = initial_coords
 
-    coords += np.array(center, dtype=np.float64)
+    if center is not None:
+        coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

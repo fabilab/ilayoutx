@@ -66,7 +66,7 @@ def arf(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"], dtype=float)
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
