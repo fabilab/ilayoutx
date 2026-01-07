@@ -14,9 +14,10 @@ import pandas as pd
 
 
 from ilayoutx.ingest import data_providers, network_library
+from ilayoutx.experimental.utils import get_debug_bool
 
 
-DEBUG_GEOM = True
+DEBUG_GEOM = get_debug_bool("ILAYOUTX_DEBUG_GEOM", True)
 
 
 def geometric(
