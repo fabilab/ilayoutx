@@ -1,3 +1,9 @@
+"""Graph Embedder (GEM) layout algorithm.
+
+Although the code in this module was written from scratch, the algorithm was learned from the igraph implementation.
+Kind thanks to the igraph developers for their efforts.
+"""
+
 from typing import (
     Optional,
 )
@@ -18,6 +24,139 @@ from ..utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
+
+
+def _graph_embedder_optimisation(
+    coords: np.ndarray,
+    adjacency: np.ndarray,
+    degrees: np.ndarray,
+    etol: float,
+    max_iter: Optional[int] = None,
+    temp_max: Optional[float] = None,
+    temp_min: float = 0.1,
+) -> None:
+    """Optimissation routine for GEM layout.
+
+    Parameters:
+        adjacency: Adjacency matrix of the graph.
+        coords: Initial coordinates of the nodes. Will be modified in place.
+        etol: Gradient sum of spring forces must be larger than etol before successful termination.
+        max_iter: Max iterations before termination of the algorithm.
+    Returns:
+        None. The coords array is modified in place.
+    """
+
+    nv = len(coords)
+
+    if max_iter is None:
+        # Each iteration we move a single node, hence unless the user knows better, we should
+        # ensure that max_iter >> nv.
+        max_iter = nv * nv * 40
+    if temp_max is None:
+        temp_max = 1.0 * nv
+
+    # Track dynamic center of layout
+    layout_center = coords.mean(axis=0)
+
+    # Attractor strength towards the center
+    gamma_attr = 1.0 / 16.0
+
+    # Repulsive strength from other nodes
+    gamma_rep = 128 * 128
+
+    # Impulse
+    impulses_last = np.zeros((nv, 2), dtype=np.float64)
+    imp = np.zeros(2)
+
+    # Node degrees and Φ function
+    phi = degrees.astype(np.float64)
+    phi *= 1 + 0.5 * phi
+
+    # Per-node temperature
+    temp = np.sqrt(nv) * np.ones(nv)
+    skew_gauge = np.zeros(nv)
+
+    # Global temperature
+    temp_global_nv = nv**1.5
+
+    # Heuristic parameters
+    sin_threshold = np.sin(2 * np.pi / 3)
+    sigma_r = 0.5 / nv
+    sigma_o = 1.0 / 3
+
+    # Iterations
+    node_order = np.arange(nv)
+    np.random.shuffle(node_order)
+    node_order_idx = 0
+    while (temp_min * nv < temp_global_nv) and (max_iter > 0):
+        print("inner loop, max_iter =", max_iter)
+        # We move only one vertex at each iteration at random
+        # Each time we run out of nodes, we reshuffle into a
+        # different order / permutation.
+        #
+        # NOTE: This only really works if max_iter >> nv, which
+        # is why the default max_iter is O(nv^2).
+        if node_order_idx >= nv:
+            np.random.shuffle(node_order)
+            node_order_idx = 0
+
+        # Choose the node
+        node_idx = node_order[node_order_idx]
+
+        # Node impulse
+        # 1. Attraction to the center
+        imp[:] = (layout_center - coords[node_idx]) * gamma_attr * phi[node_idx]
+        # 2. Add some noise
+        imp += 32 * (2 * np.random.rand(2) - 1)
+        # 3. Repulsion from all other nodes
+        delta_coords = coords - coords[node_idx]
+        delta_dist2 = (delta_coords**2).sum(axis=1)
+        # NOTE: Exclude self-repulsion and any other nodes that are straight on top of the node
+        idx_nonoverlap = delta_dist2 > 0
+        delta_coords = delta_coords[idx_nonoverlap]
+        delta_dist2 = delta_dist2[idx_nonoverlap]
+        imp -= gamma_rep * (delta_coords / delta_dist2[:, None]).sum(axis=0)
+        # 4. Attraction to adjacent nodes (with an edge)
+        adj_vector = adjacency[node_idx, idx_nonoverlap]
+        imp += (
+            (adj_vector[:, None] * delta_coords * delta_dist2[:, None]).sum(axis=0)
+            / gamma_rep
+            * phi[node_idx]
+        )
+
+        # Move node
+        if imp.any():
+            # Normalize the impulse vector to local temperature
+            imp *= temp[node_idx] / np.linalg.norm(imp)
+            coords[node_idx] += imp
+            layout_center += imp / nv
+
+        # Update node temperature (max displacement)
+        imp_last = impulses_last[node_idx]
+        if imp_last.any():
+            # Check whether the node keeps moving in a straight line or not
+            beta = np.arctan2(imp_last[1] - imp[1], imp_last[0] - imp[0])
+            sinb, cosb = np.sin(beta), np.cos(beta)
+            temp_old = temp[node_idx]
+
+            # FIXME: this looks broken?
+            if sinb > sin_threshold:
+                skew_gauge[node_idx] += np.sign(sinb) * sigma_r
+
+            # FIXME: this looks broken?
+            if abs(cosb) >= 0:
+                temp[node_idx] *= sigma_o * cosb
+
+            temp[node_idx] *= 1 - abs(skew_gauge[node_idx])
+            if temp[node_idx] > temp_max:
+                temp[node_idx] = temp_max
+
+            impulses_last[node_idx] = imp
+            temp_global_nv += temp[node_idx] - temp_old
+
+        # Housekeeping
+        node_order_idx += 1
+        max_iter -= 1
 
 
 def graph_embedder(
@@ -68,113 +207,19 @@ def graph_embedder(
             inplace=inplace,
         )
 
-        coords = initial_coords
-
         # TODO: allow weights
         adjacency = provider.adjacency_matrix()
+        degrees = provider.degrees()
 
-        # Track dynamic center of layout
-        layout_center = coords.mean(axis=0)
-
-        # Attractor strength towards the center
-        gamma_attr = 1.0 / 16.0
-
-        # Repulsive strength from other nodes
-        gamma_rep = 128 * 128
-
-        # Impulse
-        impulses_last = np.zeros((nv, 2), dtype=np.float64)
-        imp = np.zeros(2)
-
-        # Node degrees and Φ function
-        phi = provider.degrees().astype(np.float64)
-        phi *= 1 + 0.5 * phi
-
-        # Per-node temperature
-        temp = np.sqrt(nv) * np.ones(nv)
-        skew_gauge = np.zeros(nv)
-
-        # Global temperature
-        temp_global_nv = nv**1.5
-
-        # Heuristic parameters
-        temp_max = 1.0 * nv
-        temp_min = 0.1
-        sin_threshold = np.sin(2 * np.pi / 3)
-        sigma_r = 0.5 / nv
-        sigma_o = 1.0 / 3
-
-        # Iterations
-        node_order = np.arange(nv)
-        np.random.shuffle(node_order)
-        node_order_idx = 0
-        while (temp_min * nv < temp_global_nv) and (max_iter > 0):
-            # We move only one vertex at a time, at random
-            # The randomness permutes evenly over all nodes
-            if node_order_idx >= nv:
-                np.random.shuffle(node_order)
-                node_order_idx = 0
-
-            # Choose the node
-            node_idx = node_order[node_order_idx]
-
-            # Node impulse
-            # 1. Attraction to the center
-            imp[:] = (layout_center - coords[node_idx]) * gamma_attr * phi[node_idx]
-            # 2. Add some noise
-            imp += 32 * (2 * np.random.rand(2) - 1)
-            # 3. Repulsion from all other nodes
-            delta_coords = coords - coords[node_idx]
-            delta_dist2 = (delta_coords**2).sum(axis=1)
-            # NOTE: Exclude self-repulsion and any other nodes that are straight on top of the node
-            idx_nonoverlap = delta_dist2 > 0
-            delta_coords = delta_coords[idx_nonoverlap]
-            delta_dist2 = delta_dist2[idx_nonoverlap]
-            imp -= gamma_rep * (delta_coords / delta_dist2[:, None]).sum(axis=0)
-            # 4. Attraction to adjacent nodes (with an edge)
-            adj_vector = adjacency[node_idx, idx_nonoverlap]
-            imp += (
-                (adj_vector[:, None] * delta_coords * delta_dist2[:, None]).sum(axis=0)
-                / gamma_rep
-                * phi[node_idx]
-            )
-
-            # Move node
-            if imp.any():
-                # Normalize the impulse vector to local temperature
-                imp *= temp[node_idx] / np.linalg.norm(imp)
-                coords[node_idx] += imp
-                layout_center += imp / nv
-
-            # Update node temperature (max displacement)
-            imp_last = impulses_last[node_idx]
-            if imp_last.any():
-                # Check whether the node keeps moving in a straight line or not
-                beta = np.arctan2(imp_last[1] - imp[1], imp_last[0] - imp[0])
-                sinb, cosb = np.sin(beta), np.cos(beta)
-                temp_old = temp[node_idx]
-
-                # FIXME: this looks broken?
-                if sinb > sin_threshold:
-                    skew_gauge[node_idx] += np.sign(sinb) * sigma_r
-
-                # FIXME: this looks broken?
-                if abs(cosb) >= 0:
-                    temp[node_idx] *= sigma_o * cosb
-
-                temp[node_idx] *= 1 - abs(skew_gauge[node_idx])
-                if temp[node_idx] > temp_max:
-                    temp[node_idx] = temp_max
-
-                impulses_last[node_idx] = imp
-                temp_global_nv += temp[node_idx] - temp_old
-
-            # Housekeeping
-            node_order_idx += 1
-            max_iter -= 1
-
-        # FIXME:
         coords = initial_coords
+
+        _graph_embedder_optimisation(
+            coords,
+            adjacency,
+            degrees,
+            etol,
+            max_iter,
+        )
 
     if center is not None:
         coords += np.array(center, dtype=np.float64)
