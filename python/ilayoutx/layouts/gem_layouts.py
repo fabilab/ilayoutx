@@ -56,7 +56,7 @@ def graph_embedder(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
@@ -176,7 +176,8 @@ def graph_embedder(
         # FIXME:
         coords = initial_coords
 
-    coords += np.array(center, dtype=np.float64)
+    if center is not None:
+        coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

@@ -67,7 +67,6 @@ def test_fa2_basic(helpers, max_iter):
     pos_nx = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
     pos_nx.columns = pos_ilx.columns
 
-    # NOTE: For large max_iter, numerical precision can cause small differences
     np.testing.assert_allclose(
         pos_ilx.values,
         pos_nx.values,
