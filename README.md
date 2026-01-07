@@ -51,6 +51,7 @@ Some layout functions are written but not (well) tested, therefore to be conside
 - **Force-directed**:
   - GEM (graph embedder)
   - LGL (buggy)
+  - Geometric (buggy)
 
 - **Machine learning**:
   - UMAP: (buggy)
