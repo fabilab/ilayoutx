@@ -71,6 +71,18 @@ class NetworkXDataProvider(NetworkDataProvider):
 
         return nx.to_numpy_array(self.network, weight=weights)
 
+    def distance_matrix(self) -> np.ndarray:
+        """Compute the shortest path distance matrix."""
+        import networkx as nx
+
+        nested_dict = nx.all_pairs_shortest_path_length(self.network)
+        nodes = self.vertices()
+        matrix = np.zeros((len(nodes), len(nodes)), dtype=np.float64)
+        for i1, n1 in enumerate(nodes):
+            for i2, n2 in enumerate(nodes):
+                matrix[i1, i2] = nested_dict[n1].get(n2, np.inf)
+        return matrix
+
     def component_memberships(self, mode):
         """Get the connected component memberships of all vertices.
 

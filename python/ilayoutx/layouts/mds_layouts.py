@@ -53,33 +53,33 @@ def _normalize_distance_matrix(
 
 def multidimensional_scaling(
     network,
-    distance_matrix: np.ndarray
-    | list[list[float]]
-    | dict[tuple[Hashable, Hashable], float],
+    distance_matrix: Optional[
+        np.ndarray | list[list[float]] | dict[tuple[Hashable, Hashable], float]
+    ] = None,
     center: Optional[tuple[float, float]] = (0, 0),
-    etol: float = 1e-10,
-    max_iter: int = 1000,
-    seed: Optional[int] = None,
     inplace: bool = True,
+    check_connectedness: bool = False,
 ):
     """Classic multidimensional_scaling for connected networks.
 
     Parameters:
-        network: The network to layout.
+        network: The connected network to layout. This function does not check for connectedness
+            unless "check_connectedness" is True.
         distance_matrix: A symmetric distance matrix, either as a numpy array, a list of lists,
             or a dictionary. This function does NOT check for symmetry: if you input a
             non-symmetric matrix, the results will be incorrect. See also the "inplace" parameter.
+            If None, the shortest path distance matrix of the network is used (but not returned).
         center: The center of the layout.
-        etol: Gradient sum of spring forces must be larger than etol before successful termination.
-        max_iter: Max iterations before termination of the algorithm.
-        seed: A random seed to use.
         inplace: If True and the distance matrix is a (symmetric) numpy array of dtype np.flota64,
             the matrix isinstance modified in place to save memory. Otherwise, a copy is made. If
             the distance matrix is not a numpy array to start with, a copy is always made.
+        check_connectedness: If True, the function checks whether the network is connected and
+            throws an exception if it is not. If False, the function *assumes* the network is
+            connected (which saves time) and returns undefined results if the network is
+            disconnected.
     Returns:
         The layout of the network.
 
-    NOTE: This algorithm is not currently working on graphs that are not connected.
     """
 
     nl = network_library(network)
@@ -89,17 +89,23 @@ def multidimensional_scaling(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
     else:
-        mat = _normalize_distance_matrix(
-            distance_matrix,
-            index,
-            nv,
-            inplace,
-        )
+        if check_connectedness and (not provider.is_connected()):
+            raise ValueError("The input network is not connected.")
+
+        if distance_matrix is None:
+            mat = provider.distance_matrix()
+        else:
+            mat = _normalize_distance_matrix(
+                distance_matrix,
+                index,
+                nv,
+                inplace,
+            )
 
         # Get square distance matrix
         mat *= mat
@@ -123,7 +129,8 @@ def multidimensional_scaling(
         coords = eigvec
         coords *= np.sqrt(eigval)
 
-    coords += np.array(center, dtype=np.float64)
+    if center is not None:
+        coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

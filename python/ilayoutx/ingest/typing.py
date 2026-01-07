@@ -4,6 +4,7 @@ from typing import (
     Protocol,
 )
 from collections.abc import Hashable
+import numpy as np
 import pandas as pd
 
 
@@ -58,3 +59,12 @@ class NetworkDataProvider(Protocol):
     ) -> dict[str, Sequence[Hashable]]:
         """Get a minimum spanning of the graph."""
         ...
+
+    def component_memberships(self, mode) -> np.ndarray:
+        """Get the component memberships of all vertices."""
+        ...
+
+    def is_connected(self) -> bool:
+        """Check whether the graph is connected."""
+        memberships_unique = np.unique(self.component_memberships(mode="weak"))
+        return len(memberships_unique) <= 1

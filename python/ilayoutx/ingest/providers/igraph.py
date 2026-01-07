@@ -58,14 +58,16 @@ class IGraphDataProvider(NetworkDataProvider):
 
     def adjacency_matrix(self, weights=None) -> np.ndarray:
         """Get the adjacency matrix as a numpy array."""
-        import igraph as ig
-
         matrix = np.asarray(self.network.get_adjacency())
         if weights is not None:
             edge_indices = np.array(self.edges())
             matrix[edge_indices[:, 0], edge_indices[:, 1]] = weights
 
         return matrix
+
+    def distance_matrix(self) -> np.ndarray:
+        """Compute the shortest path distance matrix of the network."""
+        return np.asarray(self.network.distances())
 
     def component_memberships(self, mode):
         """Get the connected component memberships of all vertices.
