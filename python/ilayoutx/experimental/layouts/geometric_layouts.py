@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 import pandas as pd
 
 
-from ..ingest import data_providers, network_library
+from ilayoutx.ingest import data_providers, network_library
 
 
 DEBUG_GEOM = True
