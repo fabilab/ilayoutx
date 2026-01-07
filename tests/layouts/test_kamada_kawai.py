@@ -1,4 +1,4 @@
-"""Test ForceAtlas2 layouts."""
+"""Test Kamada-Kawai layouts."""
 
 import pytest
 import numpy as np
@@ -9,24 +9,24 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_fa2_empty(helpers):
+def test_kk_empty(helpers):
     g = nx.Graph()
 
-    layout = ilx.layouts.forceatlas2(g)
+    layout = ilx.layouts.kamada_kawai(g)
 
     helpers.check_generic_layout(layout)
     assert layout.shape == (0, 2)
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_fa2_singleton(helpers, center):
+def test_kk_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
     kwargs = {}
     if center is not None:
         kwargs["center"] = center
-    layout = ilx.layouts.forceatlas2(g, **kwargs)
+    layout = ilx.layouts.kamada_kawai(g, **kwargs)
     # Default center is (0, 0)
     if center is None:
         center = (0, 0)
@@ -41,8 +41,7 @@ def test_fa2_singleton(helpers, center):
     )
 
 
-@pytest.mark.parametrize("max_iter", [0, 1, 10, 30, 100, 300, 1000])
-def test_fa2_basic(helpers, max_iter):
+def test_kk_basic(helpers):
     """Test basic FA2 layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause
@@ -58,18 +57,18 @@ def test_fa2_basic(helpers, max_iter):
         3: (2.0, 1.0),
     }
 
-    pos_ilx = ilx.layouts.forceatlas2(g, initial_coords=initial_coords, max_iter=max_iter)
+    pos_ilx = ilx.layouts.kamada_kawai(g, initial_coords=initial_coords)
 
-    # networkx bug https://github.com/networkx/networkx/pull/8451
-    initial_coords = {key: np.array(val, dtype=np.float64) for key, val in initial_coords.items()}
+    ## networkx bug https://github.com/networkx/networkx/pull/8451
+    # initial_coords = {key: np.array(val, dtype=np.float64) for key, val in initial_coords.items()}
 
-    pos_nx = nx.forceatlas2_layout(g, pos=initial_coords, max_iter=max_iter)
+    pos_nx = nx.kamada_kawai_layout(g, pos=initial_coords)
     pos_nx = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
     pos_nx.columns = pos_ilx.columns
 
-    # NOTE: For large max_iter, numerical precision can cause small differences
+    # NOTE: Default max_iter is 15000, numerical precision can cause small differences
     np.testing.assert_allclose(
         pos_ilx.values,
         pos_nx.values,
-        atol=1e-14,
+        atol=1e-3,
     )

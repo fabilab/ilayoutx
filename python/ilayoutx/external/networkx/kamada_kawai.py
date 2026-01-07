@@ -1,8 +1,6 @@
 """Networkx-derived support code for Kamada Kawai."""
 
-import numpy as np
-import scipy as sp
-
+# Much of the code below is adapted from NetworkX:
 
 # NetworkX is distributed with the 3-clause BSD license.
 #
@@ -41,26 +39,12 @@ import scipy as sp
 #    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 #    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-def _kamada_kawai_solve(dist_mtx, pos_arr, dim):
-    # Anneal node locations based on the Kamada-Kawai cost-function,
-    # using the supplied matrix of preferred inter-node distances,
-    # and starting locations.
 
-    meanwt = 1e-3
-    costargs = (np, 1 / (dist_mtx + np.eye(dist_mtx.shape[0]) * 1e-3), meanwt, dim)
-
-    optresult = sp.optimize.minimize(
-        _kamada_kawai_costfn,
-        pos_arr.ravel(),
-        method="L-BFGS-B",
-        args=costargs,
-        jac=True,
-    )
-
-    return optresult.x.reshape((-1, dim))
+import numpy as np
+import scipy as sp
 
 
-def _kamada_kawai_costfn(pos_vec, np, invdist, meanweight, dim):
+def _kamada_kawai_cost_function(pos_vec, np, invdist, meanweight, dim):
     # Cost-function and gradient for Kamada-Kawai layout algorithm
     nNodes = invdist.shape[0]
     pos_arr = pos_vec.reshape((nNodes, dim))
@@ -91,3 +75,23 @@ def _kamada_kawai_costfn(pos_vec, np, invdist, meanweight, dim):
     grad += meanweight * sumpos
 
     return (cost, grad.ravel())
+
+
+def _kamada_kawai_solve(dist_mtx, pos_arr, dim, max_iter=15000):
+    # Anneal node locations based on the Kamada-Kawai cost-function,
+    # using the supplied matrix of preferred inter-node distances,
+    # and starting locations.
+
+    meanwt = 1e-3
+    costargs = (np, 1 / (dist_mtx + np.eye(dist_mtx.shape[0]) * 1e-3), meanwt, dim)
+
+    optresult = sp.optimize.minimize(
+        _kamada_kawai_cost_function,
+        pos_arr.ravel(),
+        method="L-BFGS-B",
+        args=costargs,
+        jac=True,
+        options={"maxiter": max_iter},
+    )
+
+    return optresult.x.reshape((-1, dim))

@@ -32,21 +32,13 @@ pip install ilayoutx
   - triangular
 
 - **Force-directed**:
-  - spring aka Fruchterman-Reingold
+  - spring (Fruchterman-Reingold)
   - ARF
   - Forceatlas2
   - Kamada-Kawai
-  - GEM (graph embedder)
-  - LGL (buggy)
-
-- **Machine learning**:
-  - UMAP: probably somewhat buggy
 
 - **Directed acyclic graphs (DAGs)**:
-  - Sugiyama including edge routing.
-
-- **Tree-like**:
-  - (TODO: Reingold-Tilford)
+  - Sugiyama including edge routing (only for directed graphs ATM).
 
 - **Other**:
   - bipartite
@@ -54,11 +46,24 @@ pip install ilayoutx
   - random (supports vertex sizes)
   - multidimensional scaling (MDS)
 
+Some layout functions are written but not (well) tested, therefore to be considered experimental.
+
+- **Force-directed**:
+  - GEM (graph embedder)
+  - LGL (buggy)
+
+- **Machine learning**:
+  - UMAP: (buggy)
+
+
+## Wishlist
+- **Tree-like**:
+  - Reingold-Tilford
 
 ## Rationale
 The layout code is in Rust and exposed to Python via the amazing [PyO3](https://pyo3.rs/), with the goal to combine speed (by the machine) with comfort (for the user).
 
-I'm a rust beginner, please be kind when judging this codebase. Feel free to open an [issue](https://github.com/fabilab/ilayoutx/issues) if you have questions.
+I'm a rust beginner, please be kind when judging this codebase. Feel free to open an [issue](https://todo.sr.ht/~iosonofabio/ilayoutx) on SourceHut if you have questions.
 
 ## Authors
 Fabio Zanini (https://fabilab.org)

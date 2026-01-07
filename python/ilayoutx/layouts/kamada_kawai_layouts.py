@@ -22,6 +22,7 @@ def kamada_kawai(
     radius: Optional[float] = 1.0,
     center: Optional[tuple[float, float]] = (0, 0),
     initial_coords: Optional[np.ndarray | dict | pd.DataFrame] = None,
+    max_iter: int = 15000,
 ) -> pd.DataFrame:
     """Kamada-Kawai layout algorithm.
 
@@ -42,7 +43,7 @@ def kamada_kawai(
     nv = len(index)
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
@@ -60,12 +61,18 @@ def kamada_kawai(
         )
 
         # Solve the kk optimization problem
-        coords = _kamada_kawai_solve(dist, initial_coords, 2)
+        coords = _kamada_kawai_solve(
+            dist,
+            initial_coords,
+            2,
+            max_iter=max_iter,
+        )
 
         # Rescale and center the coordinates
         coords *= radius / np.abs(coords).max()
 
-    coords += np.array(center, dtype=np.float64)
+    if center is not None:
+        coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
