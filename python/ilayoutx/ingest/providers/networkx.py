@@ -75,12 +75,15 @@ class NetworkXDataProvider(NetworkDataProvider):
         """Compute the shortest path distance matrix."""
         import networkx as nx
 
-        nested_dict = nx.all_pairs_shortest_path_length(self.network)
+        distance_generator = nx.all_pairs_shortest_path_length(self.network)
         nodes = self.vertices()
-        matrix = np.zeros((len(nodes), len(nodes)), dtype=np.float64)
-        for i1, n1 in enumerate(nodes):
-            for i2, n2 in enumerate(nodes):
-                matrix[i1, i2] = nested_dict[n1].get(n2, np.inf)
+        nodes_ser = pd.Series(np.arange(len(nodes)), index=nodes)
+        matrix = np.inf * np.ones((len(nodes), len(nodes)), dtype=np.float64)
+        for n1, distances_from_n1 in distance_generator:
+            i1 = nodes_ser[n1]
+            for n2, d in distances_from_n1.items():
+                i2 = nodes_ser[n2]
+                matrix[i1, i2] = d
         return matrix
 
     def component_memberships(self, mode):

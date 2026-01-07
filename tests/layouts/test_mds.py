@@ -47,3 +47,23 @@ def test_mds_disconnected(helpers):
     ilx.layouts.multidimensional_scaling(ig.Graph(n=1), check_connectedness=True)
     with pytest.raises(ValueError):
         ilx.layouts.multidimensional_scaling(ig.Graph(n=2), check_connectedness=True)
+
+
+@pytest.mark.parametrize("nv,radius", [(4, 1.0), (9, 2.0), (14, 3.177), (17, 3.815), (30, 6.765)])
+def test_mds_ring(helpers, nv, radius):
+    """Test MDS on a circulant graph."""
+    g = ig.Graph.Ring(nv)
+
+    layout = ilx.layouts.multidimensional_scaling(g, center=(0, 0))
+
+    helpers.check_generic_layout(layout)
+    assert layout.shape == (nv, 2)
+    assert all(layout.index == list(range(g.vcount())))
+
+    # Check that nodes are on a circle
+    radii = np.linalg.norm(layout.values, axis=1)
+    np.testing.assert_allclose(
+        radii,
+        radius * np.ones(nv),
+        rtol=2e-3 if nv > 9 else 1e-2,
+    )

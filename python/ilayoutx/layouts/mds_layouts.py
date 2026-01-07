@@ -117,6 +117,8 @@ def multidimensional_scaling(
         # Get the top 2 eigenvalues and eigenvectors
         eigenvalues, eigenvectors = np.linalg.eig(mat)
         # NOTE: the absolute value is only for numerical precision issues.
+        # np.abs takes the Euclidean norm of complex numbers so the
+        # imaginary part is NOT ignored.
         eigenvalues = np.abs(eigenvalues)
         eigv_idx = np.argsort(eigenvalues)[-2:][::-1]
         eigval = eigenvalues[eigv_idx]
@@ -126,8 +128,7 @@ def multidimensional_scaling(
         # both eigenvectors. The element-wise product
         # in numpy broadcasts over the last dimension
         # so it's ok
-        coords = eigvec
-        coords *= np.sqrt(eigval)
+        coords = np.real(eigvec) * np.sqrt(eigval)
 
     if center is not None:
         coords += np.array(center, dtype=np.float64)
