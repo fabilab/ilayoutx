@@ -16,8 +16,6 @@ from .forceatlas2_layouts import forceatlas2
 from .spring_layouts import spring
 from .mds_layouts import multidimensional_scaling
 from .gem_layouts import graph_embedder
-from .lgl_layouts import large_graph_layout
-from .umap_layouts import umap
 from .sugiyama_layouts import sugiyama
 
 
@@ -36,7 +34,5 @@ __all__ = (
     spring.__name__,
     multidimensional_scaling.__name__,
     graph_embedder.__name__,
-    large_graph_layout.__name__,
-    umap.__name__,
     sugiyama.__name__,
 )

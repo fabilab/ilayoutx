@@ -7,11 +7,11 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ..ingest import (
+from ilayoutx.ingest import (
     network_library,
     data_providers,
 )
-from ..utils import _format_initial_coords
+from ilayoutx.utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
@@ -213,24 +213,18 @@ def large_graph_layout(
 
             # Add to the layout the next layer (i.e. starting from the children of root when ilayer == 1)
             cell_vertices = grid.get_cells(vertices_layer)
-            for vertex_idx, imp, cell_vertex in zip(
-                vertices_layer, impulse, cell_vertices
-            ):
+            for vertex_idx, imp, cell_vertex in zip(vertices_layer, impulse, cell_vertices):
                 children_idx = vertices_bfs[parents == vertex_idx]
                 # Children of the root are spread evenly in a circle,
                 # for the later layers use rotationally symmetric random sampling via Gaussians
                 if ilayer == 1:
-                    thetas = np.linspace(
-                        0, 2 * np.pi, len(children_idx), endpoint=False
-                    )
+                    thetas = np.linspace(0, 2 * np.pi, len(children_idx), endpoint=False)
                     r = np.zeros((len(children_idx), 2), dtype=np.float64)
                     r[:, 0] = np.cos(thetas)
                     r[:, 1] = np.sin(thetas)
                     del thetas
                 else:
-                    r = np.random.normal(
-                        loc=0.0, scale=1.0, size=(len(children_idx), 2)
-                    )
+                    r = np.random.normal(loc=0.0, scale=1.0, size=(len(children_idx), 2))
                     r /= np.linalg.norm(r + 1e-10, axis=1)[:, np.newaxis]
                 r *= scon / ilayer
 
@@ -264,9 +258,7 @@ def large_graph_layout(
 
                 # Attract along vetted, cross-layer edges, independent of grid cells
                 if len(edges_samecell) > 0:
-                    delta_edges = (
-                        coords[edges_samecell[:, 1]] - coords[edges_samecell[:, 0]]
-                    )
+                    delta_edges = coords[edges_samecell[:, 1]] - coords[edges_samecell[:, 0]]
                     dist = np.linalg.norm(delta_edges)
                     nonoverlap_idx = dist > 0
                     # NOTE: This is a cheap way to zero contribution from
@@ -290,15 +282,11 @@ def large_graph_layout(
                         continue
                     idx_cell = vertices_cell["idx_added"].values
                     coords_cell = coords_added[idx_cell]
-                    delta_cell = (
-                        coords_cell[:, np.newaxis, :] - coords_cell[np.newaxis, :, :]
-                    )
+                    delta_cell = coords_cell[:, np.newaxis, :] - coords_cell[np.newaxis, :, :]
                     dist2_cell = np.sum(delta_cell**2, axis=-1)
                     dist2_cell = np.maximum(dist2_cell, etol * etol)
                     delta_cell /= np.sqrt(dist2_cell)[:, :, np.newaxis]
-                    force_abs = force_k**2 * (
-                        1.0 / np.sqrt(dist2_cell) - dist2_cell / repel_saddle
-                    )
+                    force_abs = force_k**2 * (1.0 / np.sqrt(dist2_cell) - dist2_cell / repel_saddle)
                     # Remove self-repulsion
                     # NOTE: we could also exclude whenever mg0 == mg1, which are the
                     # self-repulsions, but that would require allocating new arrays

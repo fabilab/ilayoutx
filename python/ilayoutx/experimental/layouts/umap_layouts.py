@@ -11,11 +11,11 @@ from scipy.optimize import (
 )
 import pandas as pd
 
-from ..ingest import (
+from ilayoutx.ingest import (
     network_library,
     data_providers,
 )
-from ..utils import _format_initial_coords
+from ilayoutx.utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
@@ -173,9 +173,7 @@ def _apply_forces(
 
     # Repulsive force via negative samlping (cross-entropy)
     # FIXME: improve this to the actual number
-    n_negative_samples = negative_sampling_rate * np.ones(
-        idx_edges.sum(), dtype=np.int64
-    )
+    n_negative_samples = negative_sampling_rate * np.ones(idx_edges.sum(), dtype=np.int64)
     # NOTE: This is nifty little trick by which we do not iterate directly
     # over the edges. To vectorise aggressively, we iterate over the observed
     # number of negative samples needed and push the same vertex multiple times.
@@ -327,9 +325,7 @@ def _get_edge_distance_df(
 
 def umap(
     network,
-    distances: Optional[
-        np.ndarray | pd.Series | dict[(Hashable, Hashable), float]
-    ] = None,
+    distances: Optional[np.ndarray | pd.Series | dict[(Hashable, Hashable), float]] = None,
     initial_coords: Optional[
         dict[Hashable, tuple[float, float] | list[float]]
         | list[list[float] | tuple[float, float]]
