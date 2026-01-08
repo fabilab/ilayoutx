@@ -20,6 +20,16 @@ pip install ilayoutx
  - **Mailing list**: https://lists.sr.ht/~iosonofabio/ilayoutx-dev
  - **Pull Requests**: This project prefers patches via the mailing list, however PRs on GitHub are currently accepted.
 
+## Quickstart
+```python
+import networkx as nx
+import ilayoutx as ilx
+
+G = nx.circulant_graph(4, [1])
+layout = ilx.layouts.multidimensional_scaling(G)
+```
+
+
 ## Layouts
 - **Geometric**:
   - line
