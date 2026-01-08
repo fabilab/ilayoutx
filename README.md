@@ -47,6 +47,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - Forceatlas2
   - Kamada-Kawai
   - GEM (graph embedder)
+  - Geometric (from [netgraph](https://github.com/paulbrodersen/netgraph))
 
 - **Directed acyclic graphs (DAGs)**:
   - Sugiyama including edge routing (only for directed graphs ATM).
@@ -61,7 +62,6 @@ Some layout functions are written but not (well) tested, therefore to be conside
 
 - **Force-directed**:
   - LGL (buggy)
-  - Geometric (buggy)
 
 - **Machine learning**:
   - UMAP: (buggy)

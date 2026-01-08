@@ -42,7 +42,7 @@ def arf(
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes.
         scaling: Strength of the repulsive forces. Larger values spread the nodes further apart.
-        center: Recenter the layout around this point.
+        center: If not None, recenter the layout around this point.
         spring_strength: Strength of springs between connected nodes. Should be larger than 1.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         dt: Time step for force differential equation simulations.

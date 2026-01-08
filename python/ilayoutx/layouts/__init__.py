@@ -17,6 +17,7 @@ from .spring_layouts import spring
 from .mds_layouts import multidimensional_scaling
 from .gem_layouts import graph_embedder
 from .sugiyama_layouts import sugiyama
+from .geometric_layouts import geometric
 
 
 __all__ = (
@@ -28,6 +29,7 @@ __all__ = (
     bipartite.__name__,
     multipartite.__name__,
     grid.__name__,
+    geometric.__name__,
     kamada_kawai.__name__,
     arf.__name__,
     forceatlas2.__name__,
