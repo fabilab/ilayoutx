@@ -32,7 +32,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
 
 ## Features
 ### Layouts
-- **Geometric**:
+- **Shapes**:
   - line
   - circle (supports vertex sizes)
   - shell
