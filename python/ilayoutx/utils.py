@@ -34,3 +34,27 @@ def _format_initial_coords(
             )
 
     return initial_coords
+
+
+def _recenter_layouts(
+    new_layouts: list[pd.DataFrame],
+    center: tuple[float, float],
+) -> None:
+    """Recenter multiple layouts around a given center point.
+
+    Parameters:
+        new_layouts: List of layouts to recenter. Each layout is a pandas DataFrame with 'x' and 'y'
+            columns (among others).
+        center: The point to recenter the combined layout around.
+    Returns:
+        None. The input layouts are modified in place.
+    """
+    xymins = np.array([new_layout[["x", "y"]].values.min(axis=0) for new_layout in new_layouts])
+    xymaxs = np.array([new_layout[["x", "y"]].values.max(axis=0) for new_layout in new_layouts])
+    xmin, ymin = xymins.min(axis=0)
+    xmax, ymax = xymaxs.max(axis=0)
+    current_center = 0.5 * (np.array([xmin, ymin]) + np.array([xmax, ymax]))
+    shift = np.array(center) - current_center
+    for new_layout in new_layouts:
+        new_layout["x"] += shift[0]
+        new_layout["y"] += shift[1]

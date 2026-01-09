@@ -2,7 +2,6 @@
 
 import pytest
 import numpy as np
-import pandas as pd
 
 import ilayoutx as ilx
 

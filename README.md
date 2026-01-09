@@ -69,11 +69,17 @@ Some layout functions are written but not (well) tested, therefore to be conside
 
 ### Packings
 - Circular packing (via [circlify](github.com/elmotec/circlify/))
-
-Some packing functions are written but not (well) tested, therefore to be considered experimental.
-
 - Rectangular packing (via [rectangle-packer](https://github.com/Penlect/rectangle-packer/))
 
+### Edge routing
+`ilayoutx` includes routines to route edges in a visually pleasing way. This is generally tricky not only because
+aesthetics are subjective, but also because the task is somewhat dependent on the level of zoom of the downstream
+visualisation (intuitively, when zoomed out, things tend to look more crowded). Edge routing can be used in
+[iplotx](https://git.sr.ht/~iosonofabio/iplotx) via the `waypoints` keyword argument of the `network` function.
+
+The following edge routing algorithms are implemented:
+
+- Sugiyama edge routing for DAGs.
 
 ## Wishlist
 - **Tree-like**:

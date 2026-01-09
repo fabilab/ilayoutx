@@ -1,22 +1,25 @@
 """Rectangular packing for disconnected graphs or sets of graphs."""
 
 from typing import (
-    Sequence,
     Optional,
+    Sequence,
 )
 import numpy as np
 import pandas as pd
-import circlify
+from rpack import pack as rectangular_pack_integers
 
 from ilayoutx.utils import _recenter_layouts
 
 
 def _place_multiple_layouts(
-    layouts: Sequence[pd.DataFrame],
+    layouts: list[pd.DataFrame],
     padding: float,
     add_ids: bool,
-) -> list[pd.DataFrame]:
-    """Place the layouts relative to one another.
+    max_width: Optional[float] = None,
+    max_height: Optional[float] = None,
+):
+    """
+    Place the layouts relative to one another.
 
     Parameters:
         layouts: Sequence of layouts to pack. Each layout is a pandas DataFrame with 'x' and 'y'
@@ -24,8 +27,10 @@ def _place_multiple_layouts(
     Returns:
         List of pd.DataFrame with the packed layout.
     """
-    centers = []
-    areas = []
+
+    largest = 0
+    dimensions = []
+    xymins = []
     index_map = {}
     j = 0
     for i, layout in enumerate(layouts):
@@ -36,51 +41,39 @@ def _place_multiple_layouts(
 
         xmin, ymin = layout[["x", "y"]].values.min(axis=0)
         xmax, ymax = layout[["x", "y"]].values.max(axis=0)
-        xctr = 0.5 * (xmin + xmax)
-        yctr = 0.5 * (ymin + ymax)
-        ctr = np.array([xctr, yctr])
-        centers.append(ctr)
-        r2max = ((layout[["x", "y"]].values - ctr) ** 2).sum(axis=1).max()
-        areas.append(r2max)
-    areas = np.array(areas)
+        width = xmax - xmin
+        height = ymax - ymin
+        largest = max(largest, width, height)
+        dimensions.append((width, height))
+        xymins.append((xmin, ymin))
 
-    if padding is None:
-        nondegenerate_areas = areas[areas > 0.0]
-        if len(nondegenerate_areas) == 0:
-            padding = 0.0
-        else:
-            min_r2 = nondegenerate_areas.min()
-            padding = 0.16 * min_r2
+    # rpack requires integers... scale to a reasonable default
+    scaling = 1000.0 / largest
+    dimensions = [
+        (int((width + 0.5 * padding) * scaling), int((height + 0.5 * padding) * scaling))
+        for width, height in dimensions
+    ]
 
-    areas = (np.sqrt(areas) + 0.5 * padding) ** 2
-
-    # circlify both requests and spits out lists ordered by area (descending)
-    # so we need to keep track of the original indices
-    idx_descending = np.argsort(-areas)
-    idx_ranks = np.zeros_like(idx_descending)
-    idx_ranks[idx_descending] = np.arange(len(areas))
-
-    # NOTE: The resulting circles have areas *proportional* to the input areas,
-    # we have to rescale them to the original areas.
-    circles = circlify.circlify(list(areas[idx_descending]), show_enclosure=False)
-
-    # The circles are sorted by hierarchy and size, so we need to reorder them
-    circles = [circles[idx_ranks[i]] for i in range(len(circles))]
-
-    # NOTE: all ratios are the same so we just take the first one
-    scaling = np.sqrt(areas[0]) / circles[0].r
+    if max_width is not None:
+        max_width = int(max_width * scaling)
+    if max_height is not None:
+        max_height = int(max_height * scaling)
+    lower_lefts = rectangular_pack_integers(
+        dimensions,
+        max_width=max_width,
+        max_height=max_height,
+    )
 
     new_layouts = []
-    for j, (ctr, circ) in enumerate(zip(centers, circles)):
+    for j, ((llx, lly), (xmin, ymin)) in enumerate(zip(lower_lefts, xymins)):
         layout_id = index_map[j]
         layout = layouts[layout_id]
 
-        xctr = circ.x * scaling
-        yctr = circ.y * scaling
-
+        llx = float(llx) / scaling
+        lly = float(lly) / scaling
         new_layout = layout.copy()
-        new_layout["x"] += xctr - ctr[0]
-        new_layout["y"] += yctr - ctr[1]
+        new_layout["x"] = new_layout["x"] - xmin + llx
+        new_layout["y"] = new_layout["y"] - ymin + lly
         if add_ids:
             new_layout["id"] = new_layout.index
             new_layout["layout_id"] = layout_id
@@ -89,23 +82,26 @@ def _place_multiple_layouts(
     return new_layouts
 
 
-def circular_packing(
+def rectangular_packing(
     layouts: Sequence[pd.DataFrame],
-    padding: Optional[float] = None,
-    center: Optional[tuple[float, float]] = None,
+    padding: float = 0.0,
+    center: bool = True,
     concatenate: bool = True,
+    max_width: Optional[float] = None,
+    max_height: Optional[float] = None,
 ) -> pd.DataFrame | list[pd.DataFrame]:
     """Rectangular packing of multiple layouts.
 
     Parameters:
         layouts: Sequence of layouts to pack. Each layout is a pandas DataFrame with 'x' and 'y'
             columns.
-        padding: White space between packed layouts. None uses 10% of the smallest nondegenerate
-            layout.
-        center: If not None, recenter the combined layout around this point. If None, the lower
-            left corner will be at (0, 0).
+        padding: White space between packed layouts.
+        center: Whether to center the packed layout around the origin. Otherwise, the lower_left
+            corner will be at (0, 0).
         concatenate: Whether to concatenate all layouts into a single DataFrame. If False, a list
             of layouts will be returned.
+        max_width: If not None, the maximum width of the packed layout.
+        max_height: If not None, the maximum height of the packed layout.
     Returns:
         DataFrame or list of DataFrames with the packed layout. If concatenate is True, the
         concatenated object has two additional columns: 'layout_id' to indicate which layout
@@ -135,6 +131,8 @@ def circular_packing(
             layouts,
             padding,
             add_ids=concatenate,
+            max_width=max_width,
+            max_height=max_height,
         )
 
     if center is not None:
