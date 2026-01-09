@@ -64,23 +64,33 @@ def _place_multiple_layouts(
         centers.append(ctr)
         r2max = ((layout[["x", "y"]].values - ctr) ** 2).sum(axis=1).max()
         areas.append(r2max)
+    areas = np.array(areas)
 
     if padding is None:
-        nondegenerate_areas = [a for a in areas if a > 0.0]
+        nondegenerate_areas = areas[areas > 0.0]
         if len(nondegenerate_areas) == 0:
             padding = 0.0
         else:
-            min_r2 = min(nondegenerate_areas)
+            min_r2 = nondegenerate_areas.min()
             padding = 0.16 * min_r2
-    if padding > 0.0:
-        areas = [a + padding for a in areas]
 
-    print(areas)
+    areas = (np.sqrt(areas) + 0.5 * padding) ** 2
+
+    # circlify both requests and spits out lists ordered by area (descending)
+    # so we need to keep track of the original indices
+    idx_descending = np.argsort(-areas)
+    idx_ranks = np.zeros_like(idx_descending)
+    idx_ranks[idx_descending] = np.arange(len(areas))
+
     # NOTE: The resulting circles have areas *proportional* to the input areas,
     # we have to rescale them to the original areas.
-    circles = circlify.circlify(areas, show_enclosure=False)
+    circles = circlify.circlify(list(areas[idx_descending]), show_enclosure=False)
 
-    scaling = areas[0] / circles[0].r ** 2
+    # The circles are sorted by hierarchy and size, so we need to reorder them
+    circles = [circles[idx_ranks[i]] for i in range(len(circles))]
+
+    # NOTE: all ratios are the same so we just take the first one
+    scaling = np.sqrt(areas[0]) / circles[0].r
 
     new_layouts = []
     for j, (ctr, circ) in enumerate(zip(centers, circles)):
