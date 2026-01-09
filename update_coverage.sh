@@ -1,3 +1,7 @@
 #!/bin/sh
-rm -f .coverage
-.venv/bin/coverage run -m pytest && .venv/bin/coverage xml --omit="*/experimental/*" && .venv/bin/coverage html && .venv/bin/genbadge coverage -i coverage.xml
+COV=.venv/bin/coverage
+GENBADGE=.venv/bin/genbadge
+
+$COV erase
+$COV run -m pytest && $COV xml --omit="*/experimental/*" && $COV html && $GENBADGE coverage -i coverage.xml
+xdg-open htmlcov/index.html
