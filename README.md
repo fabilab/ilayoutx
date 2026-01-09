@@ -1,12 +1,12 @@
-[![Github Actions](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml/badge.svg)](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml)
 [![builds.sr.ht status](https://builds.sr.ht/~iosonofabio/ilayoutx.svg)](https://builds.sr.ht/~iosonofabio/ilayoutx?)
+[![Github Actions](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml/badge.svg)](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml)
 [![PyPI - Version](https://img.shields.io/pypi/v/ilayoutx)](https://pypi.org/project/ilayoutx/)
 ![Coverage](coverage-badge.svg)
 
 
 # ilayoutx
 
-Compute fast network layouts. Intended as the upstream companion for [iplotx](https://github.com/fabilab/iplotx).
+Compute fast network layouts. Intended as the upstream companion for [iplotx](https://git.sr.ht/~iosonofabio/iplotx).
 
 **NOTE**: This software is pre-alpha quality. The API is very much in flux, and the documentation is sparse. Use at your own risk.
 
@@ -30,7 +30,8 @@ layout = ilx.layouts.multidimensional_scaling(G)
 ```
 
 
-## Layouts
+## Features
+### Layouts
 - **Geometric**:
   - line
   - circle (supports vertex sizes)
@@ -65,6 +66,13 @@ Some layout functions are written but not (well) tested, therefore to be conside
 
 - **Machine learning**:
   - UMAP: (buggy)
+
+### Packings
+- Circular packing (via [circlify](github.com/elmotec/circlify/))
+
+Some packing functions are written but not (well) tested, therefore to be considered experimental.
+
+- Rectangular packing (via [rectangle-packer](https://github.com/Penlect/rectangle-packer/))
 
 
 ## Wishlist
