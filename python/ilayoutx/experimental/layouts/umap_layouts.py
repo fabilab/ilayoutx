@@ -109,62 +109,49 @@ def _find_sigma_rho(
     n = len(distances)
     target = np.log2(n) * bandwidth
 
-    if False:
-        rho = distances[0]
+    # Lifted straight from UMAP-learn:
+    lo = 0.0
+    hi = np.inf
+    mid = 1.0
 
-        def funmin(sigma):
-            return target - (np.exp(-(distances - rho) / sigma)).sum()
+    # TODO: This is very inefficient, but will do for now. FIXME
+    ith_distances = distances
+    non_zero_dists = ith_distances[ith_distances > 0.0]
+    if non_zero_dists.shape[0] >= local_connectivity:
+        index = int(np.floor(local_connectivity))
+        interpolation = local_connectivity - index
+        if index > 0:
+            rho = non_zero_dists[index - 1]
+            if interpolation > 1e-5:
+                rho += interpolation * (non_zero_dists[index] - non_zero_dists[index - 1])
+        else:
+            rho = interpolation * non_zero_dists[0]
+    elif non_zero_dists.shape[0] > 0:
+        rho = np.max(non_zero_dists)
 
-        sigma = root_scalar(
-            funmin,
-            bracket=(0, 1e3),
-            method="brentq",
-            maxiter=64,
-        ).root
-    else:
-        # Lifted st4raight from UMAP-learn:
-        lo = 0.0
-        hi = np.inf
-        mid = 1.0
-
-        # TODO: This is very inefficient, but will do for now. FIXME
-        ith_distances = distances
-        non_zero_dists = ith_distances[ith_distances > 0.0]
-        if non_zero_dists.shape[0] >= local_connectivity:
-            index = int(np.floor(local_connectivity))
-            interpolation = local_connectivity - index
-            if index > 0:
-                rho = non_zero_dists[index - 1]
-                if interpolation > 1e-5:
-                    rho += interpolation * (non_zero_dists[index] - non_zero_dists[index - 1])
+    for n in range(maxiter):
+        psum = 0.0
+        for j in range(1, distances.shape[0]):
+            d = distances[j] - rho
+            if d > 0:
+                psum += np.exp(-(d / mid))
             else:
-                rho = interpolation * non_zero_dists[0]
-        elif non_zero_dists.shape[0] > 0:
-            rho = np.max(non_zero_dists)
+                psum += 1.0
 
-        for n in range(maxiter):
-            psum = 0.0
-            for j in range(1, distances.shape[0]):
-                d = distances[j] - rho
-                if d > 0:
-                    psum += np.exp(-(d / mid))
-                else:
-                    psum += 1.0
+        if np.fabs(psum - target) < 1e-5:
+            break
 
-            if np.fabs(psum - target) < 1e-5:
-                break
-
-            if psum > target:
-                hi = mid
+        if psum > target:
+            hi = mid
+            mid = (lo + hi) / 2.0
+        else:
+            lo = mid
+            if hi == np.inf:
+                mid *= 2
+            else:
                 mid = (lo + hi) / 2.0
-            else:
-                lo = mid
-                if hi == np.inf:
-                    mid *= 2
-                else:
-                    mid = (lo + hi) / 2.0
 
-        sigma = mid
+    sigma = mid
 
     # UMAP calls this MIN_K_DIST_SCALE
     sigma = np.maximum(sigma, 1e-3 * distances.mean())
@@ -195,6 +182,41 @@ def _compute_connectivity_probability(
             / (sigmas[~idx_fully_connected])
         )
     )
+    return vals
+
+
+def _compute_sigma_rho_and_connectivity_probability(
+    distances: pd.Series,
+    bandwidth: float = 1.0,
+    local_connectivity: float = 1.0,
+    maxiter: int = 64,
+) -> np.ndarray:
+    """Bundle function for the sigma, rho and computation of the connectivity probabilities.
+
+    Parameters:
+        distances: A pandas Series of distances, sorted with the shortest being zero.
+        bandwidth: The bandwidth parameter for the smoothing.
+        local_connectivity: TODO
+        maxiter: Maximum number of iterations for the sigma/rho finder.
+    Returns:
+        Array of connectivity probabilities.
+
+    NOTE: This function exists because pd.GroupBy.transform() needs not propagate sigmas and
+        rhos across the whole edge list.
+    TODO: Check whether this even makes sense with a profiler.
+    """
+    sigma, rho = _find_sigma_rho(
+        distances.values,
+        bandwidth=bandwidth,
+        local_connectivity=local_connectivity,
+        maxiter=maxiter,
+    )
+    # Reimplementation of the computation for each group
+    vals = np.ones_like(distances)
+    if sigma > 0:
+        idx_fully_connected = distances <= rho
+        vals[~idx_fully_connected] = np.exp(-(distances[~idx_fully_connected] - rho) / sigma)
+
     return vals
 
 
@@ -552,17 +574,12 @@ def umap(
             # Subtract closest neighbour
             edge_df["distance"] -= edge_df.groupby("source")["distance"].transform("min")
 
-            # Estimate sigma by scalar minimisation
-            edge_df[["sigma", "rho"]] = edge_df.groupby("source")["distance"].transform(
-                _find_sigma_rho,
+            # Compute sigmas, rhos, and connectivity probabilities in a single transform step
+            edge_df["weight"] = edge_df.groupby("source")["distance"].transform(
+                _compute_sigma_rho_and_connectivity_probability
             )
 
-            # Compute weights
-            edge_df["weight"] = _compute_connectivity_probability(
-                edge_df["distance"].values,
-                edge_df["sigma"].values,
-                edge_df["rho"].values,
-            )
+            # Symmetrise by fuzzy set operators (default is union)
             sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
 
             # Stochastic gradient descent optimization
