@@ -591,10 +591,22 @@ def umap(
         )
         coords = initial_coords
 
-        if DEBUG_UMAP:
-            coords = coords.copy()
+        # Extract the directed edges and distances
+        # FIXME: remove this scipy requirement once we know everything works
+        from scipy.sparse import coo_matrix
 
-            # Extract the directed edges and distances
+        if edge_distances is None and edge_weights is None:
+            adjacency = coo_matrix(provider.adjacency_matrix(), dtype=np.float32)
+            sym_edge_df = pd.DataFrame(
+                {
+                    "source": adjacency.row,
+                    "target": adjacency.col,
+                    "weight": adjacency.data,
+                }
+            )
+            # Cut the redundancy (there are/should be no loops)
+            sym_edge_df = sym_edge_df[sym_edge_df["source"] < sym_edge_df["target"]]
+        else:
             if edge_weights is not None:
                 edge_df = _get_edge_distance_df(
                     provider,
@@ -623,8 +635,21 @@ def umap(
             # Symmetrise by fuzzy set operators (default is union)
             sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
 
+            # Convert to sparse adjacency matrix
+            adjacency = coo_matrix(
+                (
+                    sym_edge_df["weight"].values.astype(np.float32),
+                    (sym_edge_df["source"].values, sym_edge_df["target"].values),
+                ),
+                shape=(3, 3),
+            )
+            # Make it actually symmetric and redundant
+            adjacency = adjacency + adjacency.T
+
+        if DEBUG_UMAP:
             # Stochastic gradient descent optimization
             # NOTE: the history is only recorded if requested, otherwise it's None
+            coords = coords.copy()
             coords_history = _stochastic_gradient_descent(
                 sym_edge_df,
                 nv,
@@ -638,8 +663,6 @@ def umap(
                 coords = coords_history
 
         else:
-            adjacency = coo_matrix(provider.adjacency_matrix())
-
             # NOTE: To weigh the adjacency matrix appropriately, we need to convert input distances into probability weights aka connectivity
             # strengths. The UMAP package does this in the function fuzzy_simplicial_set, which takes data vectors and computes a KNN graph
             # with associated weights. Here, we already have the graph (which may or may not be knn) and already have distances associated
@@ -681,7 +704,6 @@ def umap(
 
     if DEBUG_UMAP:
         from umap.umap_ import simplicial_set_embedding
-        from scipy.sparse import coo_matrix
 
         data = None
         adjacency = coo_matrix(provider.adjacency_matrix())
