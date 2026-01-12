@@ -36,6 +36,28 @@ def _format_initial_coords(
     return initial_coords
 
 
+def _recenter_layout(
+    coords: np.ndarray,
+    center: tuple[float, float],
+) -> None:
+    """Recenter a single layout in place around a given center point.
+
+    Parameters:
+        layout: The layout to recenter. A pandas DataFrame with 'x' and 'y' columns (among others).
+        center: The point to recenter the layout around.
+    Returns:
+        None. The input layout is modified in place.
+
+    NOTE: The layout is recentered based on extreme values, not barycentering.
+    """
+    xymin = coords.min()
+    xymax = coords.min()
+    xycenter = 0.5 * (xymin + xymax)
+
+    shift = np.array(center) - xycenter
+    coords += shift
+
+
 def _recenter_layouts(
     new_layouts: list[pd.DataFrame],
     center: tuple[float, float],

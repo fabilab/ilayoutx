@@ -19,14 +19,62 @@ from ilayoutx.utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
+from ilayoutx.utils import _recenter_layout
+from ilayoutx.experimental.utils import get_debug_bool
+
+
+DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=False)
+
+# Some of the code below is originally from UMAP-learn, see LICENSE below:
+# BSD 3-Clause License
+#
+# Copyright (c) 2017, Leland McInnes
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 def _find_ab_params(spread, min_dist):
-    """Function taken from UMAP-learn : https://github.com/lmcinnes/umap
-    Fit a, b params for the differentiable curve used in lower
-    dimensional fuzzy simplicial complex construction. We want the
-    smooth curve (from a pre-defined family with simple gradient) that
-    best matches an offset exponential decay.
+    """Fit smoothing parameters a and b from arbitrary spread and min_dist.
+
+    Parameters:
+        spread: How long after the nearest neighbor the connectivity
+            should linger (scale of the exponential). At 2 * spread
+            the connection is already only worth 14% of a closest neighbor.
+        min_dist: The minimum distance below and at which the connectivity
+            is always 1.
+
+    This is supposed to mimick an offset exponential decay from 1 to 0,
+    i.e. in probability or fuzzy space.
+
+    NOTES:
+        - Any fine texture at scales below min_dist is lost.
+        - Any fine texture at scales much larger than spread is lost too.
+    As a consequence, these two parmeters really bracket the type of
+    distances/weights this one instance of UMAP can tease apart.
     """
 
     def curve(x, a, b):
@@ -40,27 +88,114 @@ def _find_ab_params(spread, min_dist):
     return params[0], params[1]
 
 
-def _find_sigma(
+def _find_sigma_rho(
     distances: pd.Series,
     bandwidth: float = 1.0,
+    local_connectivity: float = 1.0,
+    maxiter: int = 64,
 ) -> float:
     """Find scale of exponential decay for a given set of distances.
 
     Parameters:
         distances: A pandas Series of distances, sorted with the shortest being zero.
+    Returns:
+        A pair with (sigma, rho) where sigma is the scale used for the computation of the smooth
+        distance (equivalent to spread) and rho is the distance to the closest neighbor
+        (equivalent to min_dist).
     """
+    if not isinstance(distances, np.ndarray):
+        distances = distances.values
+
     n = len(distances)
-    tgt = np.log2(n) * bandwidth
+    target = np.log2(n) * bandwidth
 
-    def funmin(sigma):
-        return tgt - (np.exp(-distances / sigma)).sum()
+    if False:
+        rho = distances[0]
 
-    return root_scalar(
-        funmin,
-        bracket=(0, 1000.0),
-        method="brentq",
-        maxiter=64,
-    ).root
+        def funmin(sigma):
+            return target - (np.exp(-(distances - rho) / sigma)).sum()
+
+        sigma = root_scalar(
+            funmin,
+            bracket=(0, 1e3),
+            method="brentq",
+            maxiter=64,
+        ).root
+    else:
+        # Lifted st4raight from UMAP-learn:
+        lo = 0.0
+        hi = np.inf
+        mid = 1.0
+
+        # TODO: This is very inefficient, but will do for now. FIXME
+        ith_distances = distances
+        non_zero_dists = ith_distances[ith_distances > 0.0]
+        if non_zero_dists.shape[0] >= local_connectivity:
+            index = int(np.floor(local_connectivity))
+            interpolation = local_connectivity - index
+            if index > 0:
+                rho = non_zero_dists[index - 1]
+                if interpolation > 1e-5:
+                    rho += interpolation * (non_zero_dists[index] - non_zero_dists[index - 1])
+            else:
+                rho = interpolation * non_zero_dists[0]
+        elif non_zero_dists.shape[0] > 0:
+            rho = np.max(non_zero_dists)
+
+        for n in range(maxiter):
+            psum = 0.0
+            for j in range(1, distances.shape[0]):
+                d = distances[j] - rho
+                if d > 0:
+                    psum += np.exp(-(d / mid))
+                else:
+                    psum += 1.0
+
+            if np.fabs(psum - target) < 1e-5:
+                break
+
+            if psum > target:
+                hi = mid
+                mid = (lo + hi) / 2.0
+            else:
+                lo = mid
+                if hi == np.inf:
+                    mid *= 2
+                else:
+                    mid = (lo + hi) / 2.0
+
+        sigma = mid
+
+    # UMAP calls this MIN_K_DIST_SCALE
+    sigma = np.maximum(sigma, 1e-3 * distances.mean())
+    return sigma, rho
+
+
+def _compute_connectivity_probability(
+    distances: np.ndarray,
+    sigmas: np.ndarray,
+    rhos: np.ndarray,
+) -> np.ndarray:
+    """Compute connectivity probabilities from distances.
+
+    Parameters:
+        distances: Distances along edges.
+        sigmas: Local scales for the distances.
+        rhos: Local minimum distances.
+    Reruns:
+        The connectivity probabilities.
+    """
+    vals = np.zeros_like(distances)
+    # If there is no scale or they are fully connected, we know for certain
+    idx_fully_connected = (distances <= rhos) | (sigmas == 0)
+    vals[idx_fully_connected] = 1.0
+    vals[~idx_fully_connected] = np.exp(
+        -(
+            (distances[~idx_fully_connected] - rhos[~idx_fully_connected])
+            / (sigmas[~idx_fully_connected])
+        )
+    )
+    return vals
 
 
 def _fuzzy_symmetrisation(
@@ -332,9 +467,9 @@ def umap(
         | np.ndarray
         | pd.DataFrame
     ] = None,
-    min_dist: float = 0.5,
+    min_dist: float = 0.1,
     spread: float = 1.0,
-    center: Optional[tuple[float, float]] = (0, 0),
+    center: Optional[tuple[float, float]] = None,
     max_iter: int = 100,
     seed: Optional[int] = None,
     inplace: bool = True,
@@ -344,6 +479,8 @@ def umap(
 
     Parameters:
         network: The network to layout.
+        distances: Distances associated with the edges of the network. If None, all edges are
+            assigned a distance of 1.0.
         initial_coords: Initial coordinates for the nodes. See also the "inplace" parameter.
         min_dist: A fudge parameter that controls how tightly clustered the nodes will be.
             This should be considered in relationship with the following "spread" parameter.
@@ -355,7 +492,7 @@ def umap(
             technically converge, so each time this exact number of iterations will be run.
         seed: A random seed to use.
         inplace: If True and the initial coordinates are a numpy array of dtype np.float64,
-            that array will be recycled for the output and will be changed in place.
+        that array will be recycled for the output and will be changed in place.
     Returns:
         The layout of the network.
 
@@ -370,11 +507,27 @@ def umap(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
     else:
+        try:
+            from umap.umap_ import simplicial_set_embedding
+        except ImportError:
+            print(
+                "The umap-learn package is needed to construct nontrivial UMAP layouts. Install it e.g. via pip install umap-learn."
+            )
+        try:
+            from scipy.sparse import coo_matrix
+        except ImportError:
+            print(
+                "The scipy package is needed to construct nontrivial UMAP layouts. Install it e.g. via pip install scipy."
+            )
+
+        # Fit smoothing based on fudge parameters
+        a, b = _find_ab_params(spread, min_dist)
+
         initial_coords = _format_initial_coords(
             initial_coords,
             index=index,
@@ -383,52 +536,142 @@ def umap(
         )
         coords = initial_coords
 
-        # Fit smoothing based on fudge parameters
-        a, b = _find_ab_params(spread, min_dist)
+        if DEBUG_UMAP:
+            coords = coords.copy()
 
-        # Extract the directed edges and distances
-        edge_df = _get_edge_distance_df(
-            provider,
-            distances,
-            vertices=index,
-        )
+            # Extract the directed edges and distances
+            edge_df = _get_edge_distance_df(
+                provider,
+                distances,
+                vertices=index,
+            )
 
-        # Sort by source and distance
-        edge_df.sort_values(by=["source", "distance"], inplace=True)
+            # Sort by source and distance
+            edge_df.sort_values(by=["source", "distance"], inplace=True)
 
-        # Subtract closest neighbour
-        edge_df["distance"] -= edge_df.groupby("source")["distance"].transform("min")
+            # Subtract closest neighbour
+            edge_df["distance"] -= edge_df.groupby("source")["distance"].transform("min")
 
-        # Estimate sigma by scalar minimisation
-        edge_df["sigma"] = edge_df.groupby("source")["distance"].transform(_find_sigma)
+            # Estimate sigma by scalar minimisation
+            edge_df[["sigma", "rho"]] = edge_df.groupby("source")["distance"].transform(
+                _find_sigma_rho,
+            )
 
-        # Compute weights
-        edge_df["weight"] = np.exp(edge_df["distance"] / edge_df["sigma"])
-        sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
+            # Compute weights
+            edge_df["weight"] = _compute_connectivity_probability(
+                edge_df["distance"].values,
+                edge_df["sigma"].values,
+                edge_df["rho"].values,
+            )
+            sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
 
-        # Stochastic gradient descent optimization
-        # NOTE: the history is only recorded if requested, otherwise it's None
-        coords_history = _stochastic_gradient_descent(
-            sym_edge_df,
-            nv,
-            initial_coords=coords,
-            a=a,
-            b=b,
-            n_epochs=max_iter,
-            record=record,
-        )
-        if record:
-            coords = coords_history
+            # Stochastic gradient descent optimization
+            # NOTE: the history is only recorded if requested, otherwise it's None
+            coords_history = _stochastic_gradient_descent(
+                sym_edge_df,
+                nv,
+                initial_coords=coords,
+                a=a,
+                b=b,
+                n_epochs=max_iter,
+                record=record,
+            )
+            if record:
+                coords = coords_history
 
-        __import__("ipdb").set_trace()
+        else:
+            adjacency = coo_matrix(provider.adjacency_matrix())
 
-    coords += np.array(center, dtype=np.float64)
+            # NOTE: To weigh the adjacency matrix appropriately, we need to convert input distances into probability weights aka connectivity
+            # strengths. The UMAP package does this in the function fuzzy_simplicial_set, which takes data vectors and computes a KNN graph
+            # with associated weights. Here, we already have the graph (which may or may not be knn) and already have distances associated
+            # with the edges, and want to just leverage the second half of that function. This has three steps:
+            # - _find_sigma: Determine the local scaling ("geodesic warping") of distance to fuzziness
+            # - _compute_membership_strengths: Actually convert all distances into weights
+            # - _fuzzy_symmetrisation: Patch together into a global weight set
+
+            coords, aux_data = simplicial_set_embedding(
+                None,  # We only use UMAP as a graph layout, no need for actual high-dimensional data
+                adjacency,
+                n_components=2,
+                initial_alpha=1.0,
+                a=a,
+                b=b,
+                gamma=1.0,
+                negative_sample_rate=5,
+                n_epochs=max_iter,
+                init=initial_coords,
+                metric="euclidean",
+                metric_kwds=None,
+                random_state=np.random.RandomState(seed),
+                # No need for any densMAP stuff here, it's barely used anyway
+                densmap=False,
+                densmap_kwds=None,
+                output_dens=False,
+            )
+
+    if center is not None:
+        _recenter_layout(coords[:, :2], center)
 
     # If history was recorded
-    if coords.ndim == 3:
+    if DEBUG_UMAP and (coords.ndim == 3):
         coords = coords.reshape(-1, 2)
         layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
         layout["epoch"] = np.repeat(np.arange(nv), max_iter)
     else:
         layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
+
+    if DEBUG_UMAP:
+        from umap.umap_ import simplicial_set_embedding
+        from scipy.sparse import coo_matrix
+
+        data = None
+        adjacency = coo_matrix(provider.adjacency_matrix())
+        coords_orig, aux_data = simplicial_set_embedding(
+            data,
+            adjacency,
+            n_components=2,
+            initial_alpha=1.0,
+            a=a,
+            b=b,
+            gamma=1.0,
+            negative_sample_rate=5,
+            n_epochs=max_iter,
+            init=initial_coords,
+            densmap=False,
+            densmap_kwds=None,
+            output_dens=False,
+            metric="euclidean",
+            metric_kwds=None,
+            random_state=np.random.RandomState(seed),
+        )
+
+        import matplotlib.pyplot as plt
+        import iplotx as ipx
+
+        ncopy = __import__("networkx").empty_graph(n=len(network.nodes()))
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        ipx.network(
+            ncopy,
+            layout=layout.copy(),
+            ax=axs[0],
+            node_facecolor="white",
+            node_edgecolor="black",
+            edge_alpha=0.1,
+            node_size=5,
+            title="ilayoutx UMAP",
+        )
+        ipx.network(
+            ncopy,
+            layout=coords_orig,
+            ax=axs[1],
+            node_facecolor="white",
+            node_edgecolor="black",
+            edge_alpha=0.1,
+            node_size=5,
+            title="original UMAP",
+        )
+        plt.ion()
+        plt.show()
+
     return layout
