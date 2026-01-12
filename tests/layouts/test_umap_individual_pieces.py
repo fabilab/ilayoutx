@@ -139,5 +139,48 @@ def test_sigma_rho_compute_bundle_as_df(distances):
     np.testing.assert_allclose(vals_ilx, vals_orig, rtol=1e-5, atol=1e-8)
 
 
-def test_fuzzy_symmetrisation():
-# TODO:
+symmetrisation_data = [
+    ("union", [0.98, 0.5, 0.4]),
+    ("intersection", [0.72, 0.5, 0.4]),
+    ("max", [0.9, 0.5, 0.4]),
+    ("min", [0.8, 0.5, 0.4]),
+    ("mean", [0.85, 0.5, 0.4]),
+]
+
+
+@pytest.mark.parametrize("operation,weights", symmetrisation_data)
+def test_fuzzy_symmetrisation(operation, weights):
+    from ilayoutx.experimental.layouts.umap_layouts import _fuzzy_symmetrisation
+
+    edge_df = pd.DataFrame(
+        [
+            [0, 1, 0.9],
+            [0, 2, 0.5],
+            [1, 0, 0.8],
+            [3, 0, 0.4],
+        ],
+        columns=["source", "target", "weight"],
+    )
+
+    sym = pd.DataFrame(
+        [
+            [0, 1],
+            [0, 2],
+            [0, 3],
+        ],
+        columns=["source", "target"],
+    )
+    sym["weight"] = weights
+
+    # Test max
+    res_ilx = _fuzzy_symmetrisation(
+        edge_df,
+        weight_col="weight",
+        operation=operation,
+    )
+    pd.testing.assert_frame_equal(
+        res_ilx,
+        sym,
+        atol=1e-8,
+        rtol=1e-5,
+    )

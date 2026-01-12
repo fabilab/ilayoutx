@@ -22,8 +22,17 @@ from ilayoutx._ilayoutx import (
 from ilayoutx.utils import _recenter_layout
 from ilayoutx.experimental.utils import get_debug_bool
 
-
 DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=False)
+
+
+# pandas supports JIT groupby operations (agg and transform) via
+# cython or numba. The default (None) is cython if found.
+# This parameter is user-writable at runtime if they so wish, but
+# it's for advanced users only, therefore we do not build any
+# safety around it and users who misuse it will get the stack trace
+# back from pandas directly.
+gropby_ops_engine = None
+
 
 # Some of the code below is originally from UMAP-learn, see LICENSE below:
 # BSD 3-Clause License
@@ -222,7 +231,7 @@ def _compute_sigma_rho_and_connectivity_probability(
 
 def _fuzzy_symmetrisation(
     edge_df: pd.DataFrame,
-    weight_col: str,
+    weight_col: str = "weight",
     operation: str = "union",
 ):
     """Symmetrise the weights via fuzzy operations.
@@ -241,31 +250,49 @@ def _fuzzy_symmetrisation(
         A DataFrame with the now undirected source and target vertices and
         symmetrised weights.
     """
-    # Split in target > or < source. There must be no loops so they are never
-    # equal.
+    # Split in target > or < source. No loops so they are never equal.
     idx = edge_df["source"] > edge_df["target"]
     src = edge_df.loc[idx, "source"]
     tgt = edge_df.loc[idx, "target"]
     edge_df.loc[idx, "source"] = tgt
     edge_df.loc[idx, "target"] = src
 
-    if operation == "max":
-        res = edge_df.groupby(["source", "target"])[weight_col].max()
-
-    # union makes the manifold more connected
-    elif operation == "union":
+    # union makes the manifold more connected because it believes
+    # both fuzzy signals
+    if operation == "union":
 
         def reduce(xs):
             """Reduce the weights to the union."""
-            return xs.sum() - (len(xs) - 1) * xs.prod()
+            return xs.sum() - (xs.shape[0] - 1) * xs.prod()
 
-        res = edge_df.groupby(["source", "target"])[weight_col].apply(
+        res = edge_df.groupby(["source", "target"])[weight_col].agg(
             reduce,
+            engine=gropby_ops_engine,
         )
 
-    # intersection makes the manifold more grainy
+    # intersection makes the manifold more grainy because it only
+    # believes the shared parts of the fuzzy signals
     elif operation == "intersection":
         res = edge_df.groupby(["source", "target"])[weight_col].prod()
+
+    # max trusts the most optimistic signal only. Notice that this
+    # is not as high as trusting the most optimisic signal and then
+    # also complementing its message with bits and pieces from other
+    # sources (which is what "union", the default in UMAP, does).
+    elif operation == "max":
+        res = edge_df.groupby(["source", "target"])[weight_col].max()
+
+    # min trusts the most pessimistic signal only. Notice that this
+    # is still better than only trusting the shared signal across
+    # multiple fuzzy emitters.
+    elif operation == "min":
+        res = edge_df.groupby(["source", "target"])[weight_col].min()
+
+    # mean trusts the average of the emitters' confidence. Does not
+    # make a whole lot of sense but if you want to use it as a
+    # relatively dumb control against other operators, you might as well.
+    elif operation == "mean":
+        res = edge_df.groupby(["source", "target"])[weight_col].mean()
 
     else:
         raise ValueError(
@@ -474,7 +501,7 @@ def _get_edge_distance_df(
         )
     else:
         raise TypeError(
-            "distances must be a pd.Series indexed by tuples, np.ndarray, dict keyed by tuples, or None.",
+            "distances/weights must be a pd.Series indexed by tuples, np.ndarray, dict keyed by tuples, or None.",
         )
 
     return edge_df
@@ -482,7 +509,8 @@ def _get_edge_distance_df(
 
 def umap(
     network,
-    distances: Optional[np.ndarray | pd.Series | dict[(Hashable, Hashable), float]] = None,
+    edge_distances: Optional[np.ndarray | pd.Series | dict[(Hashable, Hashable), float]] = None,
+    edge_weights: Optional[np.ndarray | pd.Series | dict[(Hashable, Hashable), float]] = None,
     initial_coords: Optional[
         dict[Hashable, tuple[float, float] | list[float]]
         | list[list[float] | tuple[float, float]]
@@ -501,8 +529,13 @@ def umap(
 
     Parameters:
         network: The network to layout.
-        distances: Distances associated with the edges of the network. If None, all edges are
-            assigned a distance of 1.0.
+        edge_distances: Distances associated with the edges of the network. If None, all edges are
+            assigned a distance of 1.0. This argument and "edge_weights" cannot both be provided.
+        edge_weights: Weights associated with the edges of the network. If None, use "edge_distances"
+            instead. This argument and "edge_distances" cannot both be provided. If provided,
+            these weights must be positive and will be rescaled so the max weight is 1.0. This
+            parameter is for advanced users who want to skip the sigma-rho distance-to-probability
+            computation: use "edge_distances" otherwise.
         initial_coords: Initial coordinates for the nodes. See also the "inplace" parameter.
         min_dist: A fudge parameter that controls how tightly clustered the nodes will be.
             This should be considered in relationship with the following "spread" parameter.
@@ -562,22 +595,30 @@ def umap(
             coords = coords.copy()
 
             # Extract the directed edges and distances
-            edge_df = _get_edge_distance_df(
-                provider,
-                distances,
-                vertices=index,
-            )
+            if edge_weights is not None:
+                edge_df = _get_edge_distance_df(
+                    provider,
+                    distances=edge_weights,
+                    vertices=index,
+                )
+                edge_df.rename(columns={"distance": "weight"}, inplace=True)
+                # TODO: I don't think this sorting is necessary?
+                edge_df.sort_values(by=["source", "weight"], inplace=True, ascending=[True, False])
+            else:
+                edge_df = _get_edge_distance_df(
+                    provider,
+                    edge_distances,
+                    vertices=index,
+                )
 
-            # Sort by source and distance
-            edge_df.sort_values(by=["source", "distance"], inplace=True)
+                # Sort by source and distance
+                edge_df.sort_values(by=["source", "distance"], inplace=True)
 
-            # Subtract closest neighbour
-            edge_df["distance"] -= edge_df.groupby("source")["distance"].transform("min")
-
-            # Compute sigmas, rhos, and connectivity probabilities in a single transform step
-            edge_df["weight"] = edge_df.groupby("source")["distance"].transform(
-                _compute_sigma_rho_and_connectivity_probability
-            )
+                # Compute sigmas, rhos, and connectivity probabilities in a single transform step
+                edge_df["weight"] = edge_df.groupby("source")["distance"].transform(
+                    _compute_sigma_rho_and_connectivity_probability,
+                    engine=gropby_ops_engine,
+                )
 
             # Symmetrise by fuzzy set operators (default is union)
             sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
