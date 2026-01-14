@@ -314,14 +314,22 @@ def _apply_forces(
     negative_sampling_rate: float,
     next_sampling_epoch: np.ndarray,
 ):
+    """Apply stochastic forces to a single epoch suring stochastic gradient descent.
+
+    The vague analogue of this function in UMAP-learn is _optimize_layout_euclidean_single_epoch
+    in umal.layouts.py. That function is polluted by densMAP code but is still somewhat readable.
+
+
+    """
+
     dist2_min_attr = 1e-8
     dist2_min_rep = 1e-4
     nv = len(coords)
 
-    # Linear simulated annealing
-    learning_rate = 1 - n_epoch / n_epochs
+    # The learning rate, which decays linearly over time
+    alpha = 1 - n_epoch / n_epochs
 
-    # Figure out what edges are sampled in this epoch
+    # Figure out what edges are sampled in this epoch: tenuous edges are sampled rarely if at all
     idx_edges = next_sampling_epoch <= n_epoch
     idx_source = sym_edge_df["source"].values[idx_edges]
     idx_target = sym_edge_df["target"].values[idx_edges]
@@ -337,23 +345,35 @@ def _apply_forces(
     #   epochs, in fact 60% is sampled only every 400 epochs!
     # This ignores the symmetrisation (sinks "hanging on" to other sinks), but is
     # a useful guide nonetheless about the nonlinearity involved in the log2(k)
-    # choice above. Of course, ignoring most edges most of the time makes the
-    # algorithm fast :-P
+    # choice above. Of course, ignoring most edges most of the time is exactly
+    # what makes UMAP fast :-P
     next_sampling_epoch[idx_edges] += 1.0 / sym_edge_df["weight"].values[idx_edges]
 
     # NOTE: unlike in igraph, where we have a binaty swap call for whether
     # source or sink are feeling the force, we follow the original UMAP code
     # and move both (towards one another, and away from the evil world). Templated
-    # embedding would break this decision, we leave it for now.
+    # embedding only moves the source node. The argument in the original UMAP code
+    # is called "move_other" and is True for normal embedding runs.
+
+    # NOTE: UMAP has an explicit for loop for each edge. Here we try to vectorise
+    # this operation as much as possible.
 
     # Attractive force (cross-entropy)
     delta = coords[idx_source] - coords[idx_target]
-    dist2 = (delta * delta).sum(axis=1)
-    force_attr = -2 * a * b * dist2 ** (b - 1) / (1.0 + a * dist2**b)
+    dist_squared = (delta * delta).sum(axis=1)
+    grad_coeff = -2.0 * a * b * dist_squared ** (b - 1.0)
+    grad_coeff /= a * dist_squared**b + 1.0
+
     # Forfeit pairs that are already basically on top of one another
-    force_attr[dist2 < dist2_min_attr] = 0
-    coords[idx_source] += force_attr[:, None] * delta * learning_rate
-    coords[idx_target] -= force_attr[:, None] * delta * learning_rate
+    grad_coeff[dist_squared < dist2_min_attr] = 0
+
+    # Clip the displacement before learning rate for each dimension
+    # The 4.0 magic number is lifted striaight from UMAP-learn
+    displacement = np.clip(delta * grad_coeff[:, None], -4.0, 4.0)
+
+    # Apply the attractive force
+    coords[idx_source] += displacement * alpha
+    coords[idx_target] -= displacement * alpha
 
     # Repulsive force via negative samlping (cross-entropy)
     # FIXME: improve this to the actual number
@@ -383,7 +403,7 @@ def _apply_forces(
             coords_focal = coords[idx_focal_neg]
             delta_neg = coords_focal - coords_negative
             dist2_neg = (delta_neg * delta_neg).sum(axis=1)
-            force_rep = 2 * b / (dist2_min_rep + dist2_neg) / (1.0 + a * dist2**b)
+            force_rep = 2 * b / (dist2_min_rep + dist2_neg) / (1.0 + a * dist_squared**b)
             # Shorten self-repulsion to zero
             force_rep[idx_focal == idx_negative_vertices] = 0
             # Shorten repulsion of neighbors to zero for small graphs
@@ -393,7 +413,7 @@ def _apply_forces(
                 for ifr, (i, j) in enumerate(zip(idx_focal, idx_negative_vertices)):
                     if ((idx_focal == i) & (idx_other == j)).sum() > 0:
                         force_rep[ifr] = 0
-            coords[idx_focal_neg] += force_rep[:, None] * delta_neg * learning_rate
+            coords[idx_focal_neg] += force_rep[:, None] * delta_neg * alpha
 
 
 def _stochastic_gradient_descent(
@@ -411,6 +431,7 @@ def _stochastic_gradient_descent(
     # maybe do that?
     negative_sampling_rate: int = 5,
     normalize_initial_coords: bool = True,
+    avoid_neighbors_repulsion: Optional[bool] = None,
     record: bool = False,
 ) -> Optional[np.ndarray]:
     """Compute the UMAP layout using stochastic gradient descent.
@@ -424,6 +445,9 @@ def _stochastic_gradient_descent(
         negative_sampling_rate: How many negative samples to take per positive sample.
         normalize_initial_coords: If True, normalize the initial coordinates between 0 and 10,
             which is what the original UMAP does.
+        avoid_neighbors_repulsion: If True, avoid repulsion between neighboring nodes. If None,
+            only use this for networks with <= 100 nodes (it is computationally expensive to
+            check if a random negative sample is a neighbor).
         record: If True, record the coordinates at each epoch.
     """
 
@@ -435,7 +459,8 @@ def _stochastic_gradient_descent(
     # is not that costly and more accurate than blind negative sampling.
     # For large graphs, one might spend a lot of time checking whether
     # the negative sample includes neighbors, so we avoid that.
-    avoid_neighbors_repulsion = nv <= 100
+    if avoid_neighbors_repulsion is None:
+        avoid_neighbors_repulsion = nv <= 100
 
     if normalize_initial_coords:
         cmin = coords.min(axis=0)
@@ -446,6 +471,7 @@ def _stochastic_gradient_descent(
     if record:
         coords_history = np.zeros((n_epochs + 1, nv, 2), dtype=np.float64)
         coords_history[0] = coords
+
     for n_epoch in range(n_epochs):
         _apply_forces(
             sym_edge_df,

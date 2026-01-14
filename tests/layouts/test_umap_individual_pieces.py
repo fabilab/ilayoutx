@@ -229,18 +229,7 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
         .astype(np.float32)
     )
 
-    coords_ilx = initial_coords.copy()
-    _stochastic_gradient_descent(
-        sym_edge_df,
-        g.number_of_nodes(),
-        initial_coords=coords_ilx,
-        a=a,
-        b=b,
-        n_epochs=n_epochs,
-        negative_sampling_rate=nsr,
-        normalize_initial_coords=True,
-    )
-
+    ## ORIGINAL UMAP IMPLEMENTATION ##
     # Convert to sparse adjacency matrix
     adjacency = coo_matrix(
         (
@@ -250,6 +239,12 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
         shape=(n1 + n2, n1 + n2),
     )
     # Make it actually symmetric and redundant
+    # NOTE: UMAP is based on knn, so an undirected edge (a,b) for us means that
+    # b is a neighbor of a and ALSO that a is a neighbor of b. We have to tell
+    # UMAP about that explicitly. It will make the original implementation act
+    # TWICE on this edge and, by virtue of the "move_other" parameter, it will
+    # move BOTH vertices twice as well (because UMAP thinks they are bound by
+    # a twin rope).
     adjacency = adjacency + adjacency.T
 
     # UMAP automatically normalised the initial coordinates between -10 and 10
@@ -271,6 +266,28 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
         densmap=False,
         densmap_kwds=None,
         output_dens=False,
+        # Needed for reproducibility
+        parallel=False,
+    )
+
+    ## ILX IMPLEMENTATION ##
+    coords_ilx = initial_coords.copy()
+    # NOTE: Some of the following parameters might or might not be optimal
+    # in production, but they are set here because that's how the original UMAP
+    # implementation does it.
+    # FIXME: see above note on the effect of symmetrising the adjacency matrix before
+    # we feed it to UMAP. It's ok to save time here, but we should be consistent
+    # for testing purposes.
+    _stochastic_gradient_descent(
+        sym_edge_df,
+        g.number_of_nodes(),
+        initial_coords=coords_ilx,
+        a=a,
+        b=b,
+        n_epochs=n_epochs,
+        negative_sampling_rate=nsr,
+        normalize_initial_coords=True,
+        avoid_neighbors_repulsion=False,
     )
 
     np.testing.assert_allclose(
