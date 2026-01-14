@@ -184,3 +184,98 @@ def test_fuzzy_symmetrisation(operation, weights):
         atol=1e-8,
         rtol=1e-5,
     )
+
+
+umap_sgd_data = [
+    (4, 4, 0),
+    (4, 4, 1),
+]
+
+
+@pytest.mark.parametrize("n1,n2,n_epochs", umap_sgd_data)
+def test_stochastic_gradient_descent(n1, n2, n_epochs):
+    from scipy.sparse import coo_matrix
+    from umap.umap_ import simplicial_set_embedding
+    from ilayoutx.experimental.layouts.umap_layouts import (
+        _stochastic_gradient_descent,
+        _find_ab_params,
+    )
+
+    # Run-of-the-mill UMAP defaults
+    a, b = _find_ab_params(spread=1.0, min_dist=0.1)
+    seed = 42
+    nsr = 5  # Negative sampling rate
+
+    g1 = nx.complete_graph(n1)
+    g2 = nx.complete_graph(n2)
+    g = nx.disjoint_union(g1, g2)
+
+    edge_df = nx.to_pandas_edgelist(g)
+    # Assume there is no fuzziness in the edges, all is black and white
+    edge_df["weight"] = 1.0
+
+    # This lets us also skip the symmetrisation step, since under "union"
+    # certain signals cannot be questioned. The output must be nonredundant,
+    # which this one is not (per networkx API).
+    sym_edge_df = edge_df
+
+    initial_coords = (
+        np.random.RandomState(seed)
+        .uniform(
+            low=-10.0,
+            high=10.0,
+            size=(g.number_of_nodes(), 2),
+        )
+        .astype(np.float32)
+    )
+
+    coords_ilx = initial_coords.copy()
+    _stochastic_gradient_descent(
+        sym_edge_df,
+        g.number_of_nodes(),
+        initial_coords=coords_ilx,
+        a=a,
+        b=b,
+        n_epochs=n_epochs,
+        negative_sampling_rate=nsr,
+        normalize_initial_coords=True,
+    )
+
+    # Convert to sparse adjacency matrix
+    adjacency = coo_matrix(
+        (
+            sym_edge_df["weight"].values.astype(np.float32),
+            (sym_edge_df["source"].values, sym_edge_df["target"].values),
+        ),
+        shape=(n1 + n2, n1 + n2),
+    )
+    # Make it actually symmetric and redundant
+    adjacency = adjacency + adjacency.T
+
+    # UMAP automatically normalised the initial coordinates between -10 and 10
+    coords_orig, aux_data = simplicial_set_embedding(
+        None,  # We only use UMAP as a graph layout, no need for actual high-dimensional data
+        adjacency,
+        n_components=2,
+        initial_alpha=1.0,
+        a=a,
+        b=b,
+        gamma=1.0,
+        negative_sample_rate=nsr,
+        n_epochs=n_epochs,
+        init=initial_coords,
+        metric="euclidean",
+        metric_kwds=None,
+        random_state=np.random.RandomState(seed),
+        # No need for any densMAP stuff here, it's barely used anyway
+        densmap=False,
+        densmap_kwds=None,
+        output_dens=False,
+    )
+
+    np.testing.assert_allclose(
+        coords_ilx,
+        coords_orig,
+        atol=1e-5,
+        rtol=1e-5,
+    )

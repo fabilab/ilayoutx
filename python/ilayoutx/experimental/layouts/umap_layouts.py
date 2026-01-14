@@ -402,6 +402,7 @@ def _stochastic_gradient_descent(
     initial_coords: np.ndarray,
     a: float,
     b: float,
+    initial_alpha: float = 1.0,
     n_epochs: int = 50,
     # NOTE: this is actually computed depending on the weights in the original UMAP...
     # something like the sum of positive and negative samples across history is constant across edges...
@@ -409,6 +410,7 @@ def _stochastic_gradient_descent(
     # delta is fixed) and we pick that number of negative samples. I don't think it matters much.
     # maybe do that?
     negative_sampling_rate: int = 5,
+    normalize_initial_coords: bool = True,
     record: bool = False,
 ) -> Optional[np.ndarray]:
     """Compute the UMAP layout using stochastic gradient descent.
@@ -420,9 +422,12 @@ def _stochastic_gradient_descent(
         b: Parameter b for the UMAP curve.
         n_epochs: Number of epochs to run the optimization.
         negative_sampling_rate: How many negative samples to take per positive sample.
+        normalize_initial_coords: If True, normalize the initial coordinates between 0 and 10,
+            which is what the original UMAP does.
         record: If True, record the coordinates at each epoch.
     """
 
+    coords = initial_coords
     ne = len(sym_edge_df)
     next_sampling_epoch = np.zeros(ne)
 
@@ -432,8 +437,12 @@ def _stochastic_gradient_descent(
     # the negative sample includes neighbors, so we avoid that.
     avoid_neighbors_repulsion = nv <= 100
 
-    learning_rate = 1.0
-    coords = initial_coords
+    if normalize_initial_coords:
+        cmin = coords.min(axis=0)
+        cmax = coords.max(axis=0)
+        coords -= cmin
+        coords *= 10.0 / (cmax - cmin)
+
     if record:
         coords_history = np.zeros((n_epochs + 1, nv, 2), dtype=np.float64)
         coords_history[0] = coords
