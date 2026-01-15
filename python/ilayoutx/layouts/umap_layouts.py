@@ -343,17 +343,11 @@ def _apply_forces(
         None. The coords array is modified in place.
     """
 
-    dist2_min_attr = 1e-8
-    dist2_min_rep = 1e-4
-    nv = len(coords)
-
     # The learning rate, which decays linearly over time
     alpha = 1 - n_epoch / n_epochs
 
     # Figure out what edges are sampled in this epoch: tenuous edges are sampled rarely if at all
     idx_edges = next_sampling_epoch <= n_epoch
-    idx_source = sym_edge_df["source"].values[idx_edges]
-    idx_target = sym_edge_df["target"].values[idx_edges]
 
     # Decide when the *next* sampling epoch will be... these are exponentially
     # decaying weights, so it can get far enough that it's basically "never"
@@ -397,11 +391,6 @@ def _stochastic_gradient_descent(
     b: float,
     initial_alpha: float = 1.0,
     n_epochs: int = 50,
-    # NOTE: this is actually computed depending on the weights in the original UMAP...
-    # something like the sum of positive and negative samples across history is constant across edges...
-    # so each time an edge is picked for sampling, we figure how long it's been waiting for (the epoch
-    # delta is fixed) and we pick that number of negative samples. I don't think it matters much.
-    # maybe do that?
     negative_sampling_rate: int = 5,
     normalize_initial_coords: bool = True,
     avoid_neighbors_repulsion: Optional[bool] = None,
@@ -531,6 +520,7 @@ def umap(
     ] = None,
     min_dist: float = 0.1,
     spread: float = 1.0,
+    negative_sampling_rate: Optional[int] = None,
     center: Optional[tuple[float, float]] = None,
     max_iter: int = 100,
     seed: Optional[int] = None,
@@ -554,6 +544,8 @@ def umap(
             Smaller values will result in more tightly clustered points.
         spread: The overall scale of the embedded points. This is evaluated together with
             the previous "min_dist" parameter.
+        negative_sampling_rate: How many negative samples to take per positive sample. If None,
+            This is computed such that most nodes repel at least one edge source node each epoch.
         center: The center of the layout.
         max_iter: The number of epochs to run the optimization. Note that UMAP does not
             technically converge, so each time this exact number of iterations will be run.
@@ -693,13 +685,22 @@ def umap(
             )
 
         # Stochastic gradient descent optimization
-        # NOTE: the history is only recorded if requested, otherwise it's None
-        coords = coords.astype(np.float32, copy=True)
+        # The C order is not strictly needed, but since we copy anyway
+        # it might help by providing assurances to the Rust layer
+        coords = coords.astype(np.float32, copy=True, order="C")
+
+        # Heuristic for the negative sampling rate
+        if negative_sampling_rate is None:
+            ne = len(sym_edge_df)
+            negative_sampling_rate = max(2, int((nv * 5) / ne))
+            print(f"Negative sampling rate set to {negative_sampling_rate}.")
 
         if DEBUG_UMAP:
             import time
 
             t0 = time.time()
+
+        # NOTE: the history is only recorded if requested, otherwise it's None
         coords_history = _stochastic_gradient_descent(
             sym_edge_df,
             nv,
@@ -708,6 +709,7 @@ def umap(
             b=b,
             n_epochs=max_iter,
             record=record,
+            negative_sampling_rate=negative_sampling_rate,
         )
         if DEBUG_UMAP:
             t1 = time.time()

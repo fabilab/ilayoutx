@@ -30,6 +30,44 @@ fn move_single_edge_nodes(pos1: [f32; 2], pos2: [f32; 2], a: f32, b: f32, clip: 
     displacement
 }
 
+fn _apply_repulsion_single(
+    src: usize,
+    dst_neg: usize,
+    coords: &ArrayView2<'_, f32>,
+    a: f32,
+    b: f32,
+    clip: f32,
+) -> [f32; 2] {
+    if dst_neg == src {
+        return [0.0, 0.0];
+    }
+
+    let delta = [
+        *coords.get([src, 0]).unwrap() - *coords.get([dst_neg, 0]).unwrap(),
+        *coords.get([src, 1]).unwrap() - *coords.get([dst_neg, 1]).unwrap(),
+    ];
+    let dist_squared = delta[0] * delta[0] + delta[1] * delta[1];
+
+    // Do not pop nodes that are EXACTLY on top of each other. This is ok since negative
+    // sampling happens multiple times per epoch and in general this node might have
+    // multiple edges each epoch. For very pathological graphs this might become an
+    // issue.
+    if dist_squared < 1e-14 {
+        return [0.0, 0.0];
+    }
+
+    let grad_coeff = 2.0 * b / ((1e-3 + dist_squared) * (a * dist_squared.powf(b) + 1.0));
+
+    if (-1e-14 < grad_coeff) & (grad_coeff < 1e-14) {
+        return [0.0, 0.0];
+    }
+
+    let mut displacement_neg = [delta[0] * grad_coeff, delta[1] * grad_coeff];
+
+    clip_displacement(&mut displacement_neg, clip);
+    displacement_neg
+}
+
 // NOTE: The number of edges is the largest factor for runtime complexity, so this is the unit
 // function in that respect. Ideally we would like to parallelise this one function call for
 // clear benefits. In practice, the result does depend on the race condition in accessing
@@ -77,41 +115,28 @@ fn _apply_forces_single_edge(
     *coords.get_mut([dst, 0]).unwrap() -= alpha * displacement[0];
     *coords.get_mut([dst, 1]).unwrap() -= alpha * displacement[1];
 
-    (0..negative_sampling_rate).for_each(|_| {
-        let dst_neg = rng.random_range(0..n);
+    // NOTE: Parallelising this bit is useless and slows things down
+    // The commented code here below is for educational purposes only
+    //let rn_neg: Vec<usize> = (0..negative_sampling_rate)
+    //    .map(|_| rng.random_range(0..n))
+    //    .collect();
+    //let displacement_neg: [f32; 2] = rn_neg
+    //    .into_par_iter()
+    //    .map(|dst_neg| {
+    //        _apply_repulsion_single(src, dst_neg, &coords.view(), a, b, clip) as [f32; 2]
+    //    })
+    //    .reduce(|| [0.0, 0.0], |acc, x| [acc[0] + x[0], acc[1] + x[1]]);
 
-        if dst_neg == src {
-            return;
-        }
+    let displacement_neg = (0..negative_sampling_rate)
+        .map(|_| {
+            let dst_neg = rng.random_range(0..n);
+            _apply_repulsion_single(src, dst_neg, &coords.view(), a, b, clip) as [f32; 2]
+        })
+        .fold([0.0, 0.0], |acc, x| [acc[0] + x[0], acc[1] + x[1]]);
 
-        let delta = [
-            *coords.get([src, 0]).unwrap() - *coords.get([dst_neg, 0]).unwrap(),
-            *coords.get([src, 1]).unwrap() - *coords.get([dst_neg, 1]).unwrap(),
-        ];
-        let dist_squared = delta[0] * delta[0] + delta[1] * delta[1];
-
-        // Do not pop nodes that are EXACTLY on top of each other. This is ok since negative
-        // sampling happens multiple times per epoch and in general this node might have
-        // multiple edges each epoch. For very pathological graphs this might become an
-        // issue.
-        if dist_squared < 1e-14 {
-            return;
-        }
-
-        let grad_coeff = 2.0 * b / ((1e-3 + dist_squared) * (a * dist_squared.powf(b) + 1.0));
-
-        if (-1e-14 < grad_coeff) & (grad_coeff < 1e-14) {
-            return;
-        }
-
-        let mut displacement_neg = [delta[0] * grad_coeff, delta[1] * grad_coeff];
-
-        clip_displacement(&mut displacement_neg, clip);
-
-        // Move the source node away from the negative sample
-        *coords.get_mut([src, 0]).unwrap() += alpha * displacement_neg[0];
-        *coords.get_mut([src, 1]).unwrap() += alpha * displacement_neg[1];
-    });
+    // Move the source node away from the negative sample
+    *coords.get_mut([src, 0]).unwrap() += alpha * displacement_neg[0];
+    *coords.get_mut([src, 1]).unwrap() += alpha * displacement_neg[1];
 }
 
 /// Compute attractive forces for UMAP
