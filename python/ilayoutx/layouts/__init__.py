@@ -18,6 +18,7 @@ from .mds_layouts import multidimensional_scaling
 from .gem_layouts import graph_embedder
 from .sugiyama_layouts import sugiyama
 from .geometric_layouts import geometric
+from .umap_layouts import umap
 
 
 __all__ = (
@@ -37,4 +38,5 @@ __all__ = (
     multidimensional_scaling.__name__,
     graph_embedder.__name__,
     sugiyama.__name__,
+    umap.__name__,
 )

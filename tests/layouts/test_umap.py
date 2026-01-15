@@ -8,8 +8,6 @@ import ilayoutx as ilx
 
 nx = pytest.importorskip("networkx")
 
-ilx.layouts.umap = ilx.experimental.layouts.umap
-
 
 def test_umap_empty(helpers):
     g = nx.Graph()

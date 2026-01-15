@@ -27,7 +27,7 @@ distancedata = [
 def test_sigma_rho(distances):
     """Test the local fuzziness calculations."""
 
-    from ilayoutx.experimental.layouts.umap_layouts import _find_sigma_rho
+    from ilayoutx.layouts.umap_layouts import _find_sigma_rho
 
     distances = np.asarray(distances, np.float64)
 
@@ -42,7 +42,7 @@ def test_compute_connectivity_probability(distances):
     """Test the conversion from distances to probabilities."""
 
     from umap.umap_ import compute_membership_strengths
-    from ilayoutx.experimental.layouts.umap_layouts import _compute_connectivity_probability
+    from ilayoutx.layouts.umap_layouts import _compute_connectivity_probability
 
     distances = np.asarray(distances, np.float64)
     knn_idx = 100 * np.ones_like(distances, np.int64)
@@ -75,7 +75,7 @@ def test_sigma_rho_compute_bundle(distances):
     """Test the conversion from distances to probabilities."""
 
     from umap.umap_ import compute_membership_strengths
-    from ilayoutx.experimental.layouts.umap_layouts import (
+    from ilayoutx.layouts.umap_layouts import (
         _compute_sigma_rho_and_connectivity_probability,
     )
 
@@ -106,7 +106,7 @@ def test_sigma_rho_compute_bundle_as_df(distances):
     """Test the conversion from distances to probabilities."""
 
     from umap.umap_ import compute_membership_strengths
-    from ilayoutx.experimental.layouts.umap_layouts import (
+    from ilayoutx.layouts.umap_layouts import (
         _compute_sigma_rho_and_connectivity_probability,
     )
 
@@ -150,7 +150,7 @@ symmetrisation_data = [
 
 @pytest.mark.parametrize("operation,weights", symmetrisation_data)
 def test_fuzzy_symmetrisation(operation, weights):
-    from ilayoutx.experimental.layouts.umap_layouts import _fuzzy_symmetrisation
+    from ilayoutx.layouts.umap_layouts import _fuzzy_symmetrisation
 
     edge_df = pd.DataFrame(
         [
@@ -195,7 +195,7 @@ umap_sgd_data = [
 def test_stochastic_gradient_descent(n1, n2, n_epochs):
     from scipy.sparse import coo_matrix
     from umap.umap_ import simplicial_set_embedding
-    from ilayoutx.experimental.layouts.umap_layouts import (
+    from ilayoutx.layouts.umap_layouts import (
         _stochastic_gradient_descent,
         _find_ab_params,
     )

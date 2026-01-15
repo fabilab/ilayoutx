@@ -53,6 +53,9 @@ layout = ilx.layouts.multidimensional_scaling(G)
 - **Directed acyclic graphs (DAGs)**:
   - Sugiyama including edge routing (only for directed graphs ATM).
 
+- **Machine learning**:
+  - UMAP (supports **arbitrary graphs**, not just knn graphs)
+
 - **Other**:
   - bipartite
   - multipartite
@@ -63,9 +66,6 @@ Some layout functions are written but not (well) tested, therefore to be conside
 
 - **Force-directed**:
   - LGL (buggy)
-
-- **Machine learning**:
-  - UMAP: (buggy)
 
 ### Packings
 - Circular packing (via [circlify](github.com/elmotec/circlify/))

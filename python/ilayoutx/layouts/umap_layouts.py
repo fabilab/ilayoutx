@@ -23,6 +23,9 @@ from ilayoutx._ilayoutx import (
 from ilayoutx.utils import _recenter_layout
 from ilayoutx.experimental.utils import get_debug_bool
 
+# NOTE: This is only here for future tests in terms of edge
+# parallelisation in the stochastic gradient descent. The
+# layout function works already.
 DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=False)
 
 

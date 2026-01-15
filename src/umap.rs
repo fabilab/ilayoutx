@@ -1,3 +1,4 @@
+use numpy::ndarray::{ArrayView2, ArrayViewMut2};
 use numpy::{PyArray2, PyArrayMethods, PyReadonlyArray2};
 use pyo3::prelude::*;
 use rand::Rng;
@@ -27,6 +28,90 @@ fn move_single_edge_nodes(pos1: [f32; 2], pos2: [f32; 2], a: f32, b: f32, clip: 
 
     clip_displacement(&mut displacement, clip);
     displacement
+}
+
+// NOTE: The number of edges is the largest factor for runtime complexity, so this is the unit
+// function in that respect. Ideally we would like to parallelise this one function call for
+// clear benefits. In practice, the result does depend on the race condition in accessing
+// coords. numba has a special "reduce" operation for this that essentially semaphores access to
+// that one variable but lets the rest of the function go unrestricted. Not sure if that can be
+// done esily in Rust.
+fn _apply_forces_single_edge(
+    edges: &ArrayView2<'_, i64>,
+    coords: &mut ArrayViewMut2<'_, f32>,
+    a: f32,
+    b: f32,
+    alpha: f32,
+    clip: f32,
+    negative_sampling_rate: usize,
+    n: usize,
+    i: usize,
+) {
+    let mut rng = rand::rng();
+
+    let src = *edges.get([i, 0]).unwrap() as usize;
+    let dst = *edges.get([i, 1]).unwrap() as usize;
+    if (src >= n) | (dst >= n) {
+        panic!("Edge index out of bounds");
+    }
+
+    let displacement = move_single_edge_nodes(
+        [
+            *coords.get([src, 0]).unwrap(),
+            *coords.get([src, 1]).unwrap(),
+        ],
+        [
+            *coords.get([dst, 0]).unwrap(),
+            *coords.get([dst, 1]).unwrap(),
+        ],
+        a,
+        b,
+        clip,
+    );
+
+    // Move the source node
+    *coords.get_mut([src, 0]).unwrap() += alpha * displacement[0];
+    *coords.get_mut([src, 1]).unwrap() += alpha * displacement[1];
+
+    // This is not a mapping to an existing embedding, so move the target node as well
+    *coords.get_mut([dst, 0]).unwrap() -= alpha * displacement[0];
+    *coords.get_mut([dst, 1]).unwrap() -= alpha * displacement[1];
+
+    (0..negative_sampling_rate).for_each(|_| {
+        let dst_neg = rng.random_range(0..n);
+
+        if dst_neg == src {
+            return;
+        }
+
+        let delta = [
+            *coords.get([src, 0]).unwrap() - *coords.get([dst_neg, 0]).unwrap(),
+            *coords.get([src, 1]).unwrap() - *coords.get([dst_neg, 1]).unwrap(),
+        ];
+        let dist_squared = delta[0] * delta[0] + delta[1] * delta[1];
+
+        // Do not pop nodes that are EXACTLY on top of each other. This is ok since negative
+        // sampling happens multiple times per epoch and in general this node might have
+        // multiple edges each epoch. For very pathological graphs this might become an
+        // issue.
+        if dist_squared < 1e-14 {
+            return;
+        }
+
+        let grad_coeff = 2.0 * b / ((1e-3 + dist_squared) * (a * dist_squared.powf(b) + 1.0));
+
+        if (-1e-14 < grad_coeff) & (grad_coeff < 1e-14) {
+            return;
+        }
+
+        let mut displacement_neg = [delta[0] * grad_coeff, delta[1] * grad_coeff];
+
+        clip_displacement(&mut displacement_neg, clip);
+
+        // Move the source node away from the negative sample
+        *coords.get_mut([src, 0]).unwrap() += alpha * displacement_neg[0];
+        *coords.get_mut([src, 1]).unwrap() += alpha * displacement_neg[1];
+    });
 }
 
 /// Compute attractive forces for UMAP
@@ -61,73 +146,22 @@ pub fn _umap_apply_forces(
     let mut coords = coords.as_array_mut();
     let n = coords.shape()[0];
     let n2 = coords.shape()[1];
-    let mut rng = rand::rng();
 
     if (m2 != 2) | (n2 != 2) {
         panic!("Edges must be of shape (m, 2) and coords must be of shape (n, 2)");
     }
 
-    for i in 0..m {
-        let src = *edges.get([i, 0]).unwrap() as usize;
-        let dst = *edges.get([i, 1]).unwrap() as usize;
-        if (src >= n) | (dst >= n) {
-            panic!("Edge index out of bounds");
-        }
-
-        let displacement = move_single_edge_nodes(
-            [
-                *coords.get([src, 0]).unwrap(),
-                *coords.get([src, 1]).unwrap(),
-            ],
-            [
-                *coords.get([dst, 0]).unwrap(),
-                *coords.get([dst, 1]).unwrap(),
-            ],
+    (0..m).for_each(|i| {
+        _apply_forces_single_edge(
+            &edges,
+            &mut coords,
             a,
             b,
+            alpha,
             clip,
+            negative_sampling_rate,
+            n,
+            i,
         );
-
-        // Move the source node
-        *coords.get_mut([src, 0]).unwrap() += alpha * displacement[0];
-        *coords.get_mut([src, 1]).unwrap() += alpha * displacement[1];
-
-        // This is not a mapping to an existing embedding, so move the target node as well
-        *coords.get_mut([dst, 0]).unwrap() -= alpha * displacement[0];
-        *coords.get_mut([dst, 1]).unwrap() -= alpha * displacement[1];
-
-        for _ in 0..negative_sampling_rate {
-            let dst_neg = rng.random_range(0..n);
-
-            if dst_neg == src {
-                continue;
-            }
-
-            let delta = [
-                *coords.get([src, 0]).unwrap() - *coords.get([dst_neg, 0]).unwrap(),
-                *coords.get([src, 1]).unwrap() - *coords.get([dst_neg, 1]).unwrap(),
-            ];
-            let dist_squared = delta[0] * delta[0] + delta[1] * delta[1];
-
-            // Do not pop nodes that are EXACTLY on top of each other
-            // FIXME: This is the original UMAP behavior, but is it correct?
-            if dist_squared < 1e-14 {
-                continue;
-            }
-
-            let grad_coeff = 2.0 * b / ((1e-3 + dist_squared) * (a * dist_squared.powf(b) + 1.0));
-
-            if (-1e-14 < grad_coeff) & (grad_coeff < 1e-14) {
-                continue;
-            }
-
-            let mut displacement_neg = [delta[0] * grad_coeff, delta[1] * grad_coeff];
-
-            clip_displacement(&mut displacement_neg, clip);
-
-            // Move the source node away from the negative sample
-            *coords.get_mut([src, 0]).unwrap() += alpha * displacement_neg[0];
-            *coords.get_mut([src, 1]).unwrap() += alpha * displacement_neg[1];
-        }
-    }
+    });
 }
