@@ -212,12 +212,15 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
 
     edge_df = nx.to_pandas_edgelist(g)
     # Assume there is no fuzziness in the edges, all is black and white
-    edge_df["weight"] = 1.0
+    edge_df["weight"] = np.float32(1.0)
 
     # This lets us also skip the symmetrisation step, since under "union"
     # certain signals cannot be questioned. The output must be nonredundant,
     # which this one is not (per networkx API).
     sym_edge_df = edge_df
+
+    print(sym_edge_df)
+    print(sym_edge_df.dtypes)
 
     initial_coords = (
         np.random.RandomState(seed)
@@ -245,7 +248,7 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
     # TWICE on this edge and, by virtue of the "move_other" parameter, it will
     # move BOTH vertices twice as well (because UMAP thinks they are bound by
     # a twin rope).
-    adjacency = adjacency + adjacency.T
+    # adjacency = adjacency + adjacency.T
 
     # UMAP automatically normalised the initial coordinates between -10 and 10
     coords_orig, aux_data = simplicial_set_embedding(
@@ -257,7 +260,8 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
         b=b,
         gamma=1.0,
         negative_sample_rate=nsr,
-        n_epochs=n_epochs,
+        # FIXME: UMAP makes no changes in the first epoch (epoch 0)?? Awkward...
+        n_epochs=n_epochs + 1,
         init=initial_coords,
         metric="euclidean",
         metric_kwds=None,

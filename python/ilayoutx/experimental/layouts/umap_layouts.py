@@ -22,7 +22,7 @@ from ilayoutx._ilayoutx import (
 from ilayoutx.utils import _recenter_layout
 from ilayoutx.experimental.utils import get_debug_bool
 
-DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=False)
+DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=True)
 
 
 # pandas supports JIT groupby operations (agg and transform) via
@@ -66,7 +66,7 @@ gropby_ops_engine = None
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-def _find_ab_params(spread, min_dist):
+def _find_ab_params(spread: float = 1.0, min_dist: float = 0.1):
     """Fit smoothing parameters a and b from arbitrary spread and min_dist.
 
     Parameters:
@@ -313,15 +313,31 @@ def _apply_forces(
     avoid_neighbors_repulsion: bool,
     negative_sampling_rate: float,
     next_sampling_epoch: np.ndarray,
-):
+    initial_alpha: float,
+    max_displacement: float = 4.0,
+) -> None:
     """Apply stochastic forces to a single epoch suring stochastic gradient descent.
 
     The vague analogue of this function in UMAP-learn is _optimize_layout_euclidean_single_epoch
-    in umal.layouts.py. That function is polluted by densMAP code but is still somewhat readable.
+    in umap.layouts.py. That function is polluted by densMAP code but is still somewhat readable.
 
+    Parameters:
+        sym_edge_df: DataFrame with edges and weights. Weights should usually be np.float32.
+        coords: Current coordinates of the nodes. Should also usually be np.float32.
+        a: The UMAP a parameter.
+        b: The UMAP b parameter.
+        n_epoch: The current epoch number.
+        n_epochs: The total number of epochs.
+        avoid_neighbors_repulsion: If True, avoid repulsion between neighboring nodes.
+        negative_sampling_rate: How many negative samples to take per positive sample.
+        next_sampling_epoch: Array with the next epoch number when each edge should be sampled.
+        initial_alpha: The initial learning rate.
+        max_displacement: The maximum displacement per epoch (before multiplying by the current
+            learning rate).
 
+    Returns:
+        None. The coords array is modified in place.
     """
-
     dist2_min_attr = 1e-8
     dist2_min_rep = 1e-4
     nv = len(coords)
@@ -368,10 +384,13 @@ def _apply_forces(
     grad_coeff[dist_squared < dist2_min_attr] = 0
 
     # Clip the displacement before learning rate for each dimension
-    # The 4.0 magic number is lifted striaight from UMAP-learn
-    displacement = np.clip(delta * grad_coeff[:, None], -4.0, 4.0)
+    displacement = np.clip(delta * grad_coeff[:, None], -max_displacement, max_displacement)
 
     # Apply the attractive force
+    # NOTE: UMAP makes a for loop which has the side effect that if a node is found
+    # in multiple edges, its later forces (and the resulting displacements) are
+    # affected by the earlier ones. Instead, here we are computing all forces at
+    # once which gives different results.
     coords[idx_source] += displacement * alpha
     coords[idx_target] -= displacement * alpha
 
@@ -413,6 +432,9 @@ def _apply_forces(
                 for ifr, (i, j) in enumerate(zip(idx_focal, idx_negative_vertices)):
                     if ((idx_focal == i) & (idx_other == j)).sum() > 0:
                         force_rep[ifr] = 0
+
+            # FIXME: UMAP moves "current" here, never "other". Negative repulsion,
+            # unlike attraction, is a one-way street from the mob to the focal node.
             coords[idx_focal_neg] += force_rep[:, None] * delta_neg * alpha
 
 
@@ -432,6 +454,7 @@ def _stochastic_gradient_descent(
     negative_sampling_rate: int = 5,
     normalize_initial_coords: bool = True,
     avoid_neighbors_repulsion: Optional[bool] = None,
+    max_displacement: float = 4.0,
     record: bool = False,
 ) -> Optional[np.ndarray]:
     """Compute the UMAP layout using stochastic gradient descent.
@@ -441,6 +464,7 @@ def _stochastic_gradient_descent(
         initial_coords: Initial coordinates for the nodes.
         a: Parameter a for the UMAP curve.
         b: Parameter b for the UMAP curve.
+        initial_alpha: Initial learning rate.
         n_epochs: Number of epochs to run the optimization.
         negative_sampling_rate: How many negative samples to take per positive sample.
         normalize_initial_coords: If True, normalize the initial coordinates between 0 and 10,
@@ -483,6 +507,8 @@ def _stochastic_gradient_descent(
             avoid_neighbors_repulsion,
             negative_sampling_rate,
             next_sampling_epoch,
+            initial_alpha,
+            max_displacement,
         )
         if record:
             coords_history[n_epoch + 1] = coords
@@ -641,6 +667,14 @@ def umap(
             )
             # Cut the redundancy (there are/should be no loops)
             sym_edge_df = sym_edge_df[sym_edge_df["source"] < sym_edge_df["target"]]
+            # Convert back to sparse adjacency matrix (not symmetric, attractive forces move both anyway)
+            adjacency = coo_matrix(
+                (
+                    sym_edge_df["weight"].values.astype(np.float32),
+                    (sym_edge_df["source"].values, sym_edge_df["target"].values),
+                ),
+                shape=(nv, nv),
+            )
         else:
             if edge_weights is not None:
                 edge_df = _get_edge_distance_df(
@@ -670,21 +704,22 @@ def umap(
             # Symmetrise by fuzzy set operators (default is union)
             sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
 
-            # Convert to sparse adjacency matrix
+            # Convert to sparse adjacency matrix (not symmetric, attractive forces move both anyway)
             adjacency = coo_matrix(
                 (
                     sym_edge_df["weight"].values.astype(np.float32),
                     (sym_edge_df["source"].values, sym_edge_df["target"].values),
                 ),
-                shape=(3, 3),
+                shape=(nv, nv),
             )
-            # Make it actually symmetric and redundant
-            adjacency = adjacency + adjacency.T
 
         if DEBUG_UMAP:
             # Stochastic gradient descent optimization
             # NOTE: the history is only recorded if requested, otherwise it's None
             coords = coords.copy()
+            import time
+
+            t0 = time.time()
             coords_history = _stochastic_gradient_descent(
                 sym_edge_df,
                 nv,
@@ -694,6 +729,8 @@ def umap(
                 n_epochs=max_iter,
                 record=record,
             )
+            t1 = time.time()
+            print("ilx SGD UMAP time:", t1 - t0)
             if record:
                 coords = coords_history
 
@@ -738,12 +775,11 @@ def umap(
         layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
 
     if DEBUG_UMAP:
-        from umap.umap_ import simplicial_set_embedding
+        import time
 
-        data = None
-        adjacency = coo_matrix(provider.adjacency_matrix())
+        t0 = time.time()
         coords_orig, aux_data = simplicial_set_embedding(
-            data,
+            None,  # We only use UMAP as a graph layout, no need for actual high-dimensional data
             adjacency,
             n_components=2,
             initial_alpha=1.0,
@@ -751,15 +787,19 @@ def umap(
             b=b,
             gamma=1.0,
             negative_sample_rate=5,
-            n_epochs=max_iter,
+            n_epochs=max_iter + 1,
             init=initial_coords,
-            densmap=False,
-            densmap_kwds=None,
-            output_dens=False,
             metric="euclidean",
             metric_kwds=None,
             random_state=np.random.RandomState(seed),
+            # No need for any densMAP stuff here, it's barely used anyway
+            densmap=False,
+            densmap_kwds=None,
+            output_dens=False,
+            parallel=False,
         )
+        t1 = time.time()
+        print("original SGD UMAP time:", t1 - t0)
 
         import matplotlib.pyplot as plt
         import iplotx as ipx
@@ -770,7 +810,7 @@ def umap(
             ncopy,
             layout=layout.copy(),
             ax=axs[0],
-            node_facecolor="white",
+            node_facecolor=["blue"] * (nv // 3) + ["red"] * (nv // 3),
             node_edgecolor="black",
             edge_alpha=0.1,
             node_size=5,
@@ -780,7 +820,7 @@ def umap(
             ncopy,
             layout=coords_orig,
             ax=axs[1],
-            node_facecolor="white",
+            node_facecolor=["blue"] * (nv // 3) + ["red"] * (nv // 3),
             node_edgecolor="black",
             edge_alpha=0.1,
             node_size=5,
