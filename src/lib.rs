@@ -15,7 +15,7 @@ fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bipartite::bipartite, m)?)?;
     m.add_function(wrap_pyfunction!(grid::square, m)?)?;
     m.add_function(wrap_pyfunction!(grid::triangle, m)?)?;
-    m.add_function(wrap_pyfunction!(umap::_umap_attractive_forces, m)?)?;
+    m.add_function(wrap_pyfunction!(umap::_umap_apply_forces, m)?)?;
 
     Ok(())
 }

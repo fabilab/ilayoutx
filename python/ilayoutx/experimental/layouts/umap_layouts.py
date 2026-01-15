@@ -18,11 +18,12 @@ from ilayoutx.ingest import (
 from ilayoutx.utils import _format_initial_coords
 from ilayoutx._ilayoutx import (
     random as random_rust,
+    _umap_apply_forces as _apply_forces_rust,
 )
 from ilayoutx.utils import _recenter_layout
 from ilayoutx.experimental.utils import get_debug_bool
 
-DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=True)
+DEBUG_UMAP = get_debug_bool("ILAYOUTX_DEBUG_UMAP", default=False)
 
 
 # pandas supports JIT groupby operations (agg and transform) via
@@ -338,6 +339,7 @@ def _apply_forces(
     Returns:
         None. The coords array is modified in place.
     """
+
     dist2_min_attr = 1e-8
     dist2_min_rep = 1e-4
     nv = len(coords)
@@ -374,68 +376,14 @@ def _apply_forces(
     # NOTE: UMAP has an explicit for loop for each edge. Here we try to vectorise
     # this operation as much as possible.
 
-    # Attractive force (cross-entropy)
-    delta = coords[idx_source] - coords[idx_target]
-    dist_squared = (delta * delta).sum(axis=1)
-    grad_coeff = -2.0 * a * b * dist_squared ** (b - 1.0)
-    grad_coeff /= a * dist_squared**b + 1.0
-
-    # Forfeit pairs that are already basically on top of one another
-    grad_coeff[dist_squared < dist2_min_attr] = 0
-
-    # Clip the displacement before learning rate for each dimension
-    displacement = np.clip(delta * grad_coeff[:, None], -max_displacement, max_displacement)
-
-    # Apply the attractive force
-    # NOTE: UMAP makes a for loop which has the side effect that if a node is found
-    # in multiple edges, its later forces (and the resulting displacements) are
-    # affected by the earlier ones. Instead, here we are computing all forces at
-    # once which gives different results.
-    coords[idx_source] += displacement * alpha
-    coords[idx_target] -= displacement * alpha
-
-    # Repulsive force via negative samlping (cross-entropy)
-    # FIXME: improve this to the actual number
-    n_negative_samples = negative_sampling_rate * np.ones(idx_edges.sum(), dtype=np.int64)
-    # NOTE: This is nifty little trick by which we do not iterate directly
-    # over the edges. To vectorise aggressively, we iterate over the observed
-    # number of negative samples needed and push the same vertex multiple times.
-    # This has somewhat fixed complexity that barely depends on the number of
-    # edges - as far as Python is concerned. n_ns_max is basically the inverse
-    # of the smallest weight in the sym_edge list *that was sampled this epoch*.
-    # In other words, if you happen to sample a rare weight, here's where you
-    # pay for it, but the cost is almost independent on the number of edges.
-    # TODO: A more straightforward approach would be to do this in Rust, as a
-    # straightup nested for loop (edges and negative samples for each edge).
-    n_ns_max = max(n_negative_samples)
-    for ineg in range(1, n_ns_max + 1):
-        # Which of the edges require an additional negative sample.
-        idx_negative_edges = n_negative_samples >= ineg
-
-        # Sample a random vertex for each edge that requires a negative sample.
-        # Repulsion for BOTH source and target from that vertex will be applied.
-        idx_negative_vertices = np.random.randint(nv, size=idx_negative_edges.sum())
-        coords_negative = coords[idx_negative_vertices]
-        idxs_focal = {"source": idx_source, "target": idx_target}
-        for name_focal, idx_focal in idxs_focal.items():
-            idx_focal_neg = idx_focal[idx_negative_edges]
-            coords_focal = coords[idx_focal_neg]
-            delta_neg = coords_focal - coords_negative
-            dist2_neg = (delta_neg * delta_neg).sum(axis=1)
-            force_rep = 2 * b / (dist2_min_rep + dist2_neg) / (1.0 + a * dist_squared**b)
-            # Shorten self-repulsion to zero
-            force_rep[idx_focal == idx_negative_vertices] = 0
-            # Shorten repulsion of neighbors to zero for small graphs
-            if avoid_neighbors_repulsion:
-                name_other = "target" if name_focal == "source" else "source"
-                idx_other = idxs_focal[name_other]
-                for ifr, (i, j) in enumerate(zip(idx_focal, idx_negative_vertices)):
-                    if ((idx_focal == i) & (idx_other == j)).sum() > 0:
-                        force_rep[ifr] = 0
-
-            # FIXME: UMAP moves "current" here, never "other". Negative repulsion,
-            # unlike attraction, is a one-way street from the mob to the focal node.
-            coords[idx_focal_neg] += force_rep[:, None] * delta_neg * alpha
+    _apply_forces_rust(
+        sym_edge_df[["source", "target"]].values[idx_edges].astype(np.int64),
+        coords,
+        (a, b),
+        alpha,
+        max_displacement,
+        negative_sampling_rate,
+    )
 
 
 def _stochastic_gradient_descent(
@@ -641,8 +589,18 @@ def umap(
                 "The scipy package is needed to construct nontrivial UMAP layouts. Install it e.g. via pip install scipy."
             )
 
+        if DEBUG_UMAP:
+            import time
+
+            t0 = time.time()
         # Fit smoothing based on fudge parameters
         a, b = _find_ab_params(spread, min_dist)
+
+        if DEBUG_UMAP:
+            t1 = time.time()
+            print("ilx UMAP find_ab_params time:", t1 - t0)
+
+            t0 = time.time()
 
         initial_coords = _format_initial_coords(
             initial_coords,
@@ -651,6 +609,10 @@ def umap(
             inplace=inplace,
         )
         coords = initial_coords
+
+        if DEBUG_UMAP:
+            t1 = time.time()
+            print("ilx UMAP format_initial_coords time:", t1 - t0)
 
         # Extract the directed edges and distances
         # FIXME: remove this scipy requirement once we know everything works
@@ -683,7 +645,7 @@ def umap(
                     vertices=index,
                 )
                 edge_df.rename(columns={"distance": "weight"}, inplace=True)
-                # TODO: I don't think this sorting is necessary?
+                # NOTE: This is not strictly necessary
                 edge_df.sort_values(by=["source", "weight"], inplace=True, ascending=[True, False])
             else:
                 edge_df = _get_edge_distance_df(
@@ -691,6 +653,9 @@ def umap(
                     edge_distances,
                     vertices=index,
                 )
+
+                if DEBUG_UMAP:
+                    t0 = time.time()
 
                 # Sort by source and distance
                 edge_df.sort_values(by=["source", "distance"], inplace=True)
@@ -701,8 +666,19 @@ def umap(
                     engine=gropby_ops_engine,
                 )
 
+                if DEBUG_UMAP:
+                    t1 = time.time()
+                    print("ilx UMAP compute connectivity probabilities time:", t1 - t0)
+
+            if DEBUG_UMAP:
+                t0 = time.time()
+
             # Symmetrise by fuzzy set operators (default is union)
             sym_edge_df = _fuzzy_symmetrisation(edge_df, "weight")
+
+            if DEBUG_UMAP:
+                t1 = time.time()
+                print("ilx UMAP fuzzy symmetrisation time:", t1 - t0)
 
             # Convert to sparse adjacency matrix (not symmetric, attractive forces move both anyway)
             adjacency = coo_matrix(
@@ -713,55 +689,28 @@ def umap(
                 shape=(nv, nv),
             )
 
+        # Stochastic gradient descent optimization
+        # NOTE: the history is only recorded if requested, otherwise it's None
+        coords = coords.astype(np.float32, copy=True)
+
         if DEBUG_UMAP:
-            # Stochastic gradient descent optimization
-            # NOTE: the history is only recorded if requested, otherwise it's None
-            coords = coords.copy()
             import time
 
             t0 = time.time()
-            coords_history = _stochastic_gradient_descent(
-                sym_edge_df,
-                nv,
-                initial_coords=coords,
-                a=a,
-                b=b,
-                n_epochs=max_iter,
-                record=record,
-            )
+        coords_history = _stochastic_gradient_descent(
+            sym_edge_df,
+            nv,
+            initial_coords=coords,
+            a=a,
+            b=b,
+            n_epochs=max_iter,
+            record=record,
+        )
+        if DEBUG_UMAP:
             t1 = time.time()
             print("ilx SGD UMAP time:", t1 - t0)
-            if record:
-                coords = coords_history
-
-        else:
-            # NOTE: To weigh the adjacency matrix appropriately, we need to convert input distances into probability weights aka connectivity
-            # strengths. The UMAP package does this in the function fuzzy_simplicial_set, which takes data vectors and computes a KNN graph
-            # with associated weights. Here, we already have the graph (which may or may not be knn) and already have distances associated
-            # with the edges, and want to just leverage the second half of that function. This has three steps:
-            # - _find_sigma: Determine the local scaling ("geodesic warping") of distance to fuzziness
-            # - _compute_membership_strengths: Actually convert all distances into weights
-            # - _fuzzy_symmetrisation: Patch together into a global weight set
-
-            coords, aux_data = simplicial_set_embedding(
-                None,  # We only use UMAP as a graph layout, no need for actual high-dimensional data
-                adjacency,
-                n_components=2,
-                initial_alpha=1.0,
-                a=a,
-                b=b,
-                gamma=1.0,
-                negative_sample_rate=5,
-                n_epochs=max_iter,
-                init=initial_coords,
-                metric="euclidean",
-                metric_kwds=None,
-                random_state=np.random.RandomState(seed),
-                # No need for any densMAP stuff here, it's barely used anyway
-                densmap=False,
-                densmap_kwds=None,
-                output_dens=False,
-            )
+        if record:
+            coords = coords_history
 
     if center is not None:
         _recenter_layout(coords[:, :2], center)

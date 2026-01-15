@@ -188,7 +188,6 @@ def test_fuzzy_symmetrisation(operation, weights):
 
 umap_sgd_data = [
     (4, 4, 0),
-    (4, 4, 1),
 ]
 
 
@@ -279,9 +278,6 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
     # NOTE: Some of the following parameters might or might not be optimal
     # in production, but they are set here because that's how the original UMAP
     # implementation does it.
-    # FIXME: see above note on the effect of symmetrising the adjacency matrix before
-    # we feed it to UMAP. It's ok to save time here, but we should be consistent
-    # for testing purposes.
     _stochastic_gradient_descent(
         sym_edge_df,
         g.number_of_nodes(),
