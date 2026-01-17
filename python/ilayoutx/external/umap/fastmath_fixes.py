@@ -35,24 +35,37 @@ No ill intent against UMAP's developers. Working on top of LLVM -> llvmlite -> n
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
-import numba
+
+try:
+    import numba
+except ImportError:
+    numba = None
 
 SMOOTH_K_TOLERANCE = 1e-5
 MIN_K_DIST_SCALE = 1e-3
 NPY_INFINITY = np.inf
 
 
-# Verbatim except for the numba fastmath flag:
-# https://github.com/lmcinnes/umap/issues/1216
-@numba.njit(
-    locals={
-        "psum": numba.types.float32,
-        "lo": numba.types.float32,
-        "mid": numba.types.float32,
-        "hi": numba.types.float32,
-    },
-    fastmath={"reassoc", "nsz", "nnan"},
-)
+if numba is not None:
+    # Verbatim except for the numba fastmath flag:
+    # https://github.com/lmcinnes/umap/issues/1216
+    _decorator = numba.njit(
+        locals={
+            "psum": numba.types.float32,
+            "lo": numba.types.float32,
+            "mid": numba.types.float32,
+            "hi": numba.types.float32,
+        },
+        fastmath={"reassoc", "nsz", "nnan"},
+    )
+else:
+
+    def _decorator(func):
+        """Dummy decorator if numba is not available."""
+        return func
+
+
+@_decorator
 def smooth_knn_dist(distances, k, n_iter=64, local_connectivity=1.0, bandwidth=1.0):
     """Compute a continuous version of the distance to the kth nearest
     neighbor. That is, this is similar to knn-distance but allows continuous
