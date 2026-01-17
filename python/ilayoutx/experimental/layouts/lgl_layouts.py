@@ -19,6 +19,10 @@ from ilayoutx.utils import (
 from ilayoutx._ilayoutx import (
     random as random_rust,
 )
+from ilayoutx.experimental.utils import get_debug_bool
+
+
+DEBUG_LGL = get_debug_bool("ILAYOUTX_DEBUG_LGL", default=False)
 
 
 class Grid:
@@ -172,8 +176,11 @@ def _place_nodes_lgl(
     harmonic_sum = (1.0 / np.linspace(1, nlayers - 1, nlayers - 1)).sum()
 
     # Linear scaling for each layer during initial placement
+    parent_bias_scale = 1.0
     layer_scale = np.sqrt(area / np.pi) / harmonic_sum
-    print("Layer scale:", layer_scale)
+
+    if DEBUG_LGL:
+        print("Layer scale:", layer_scale)
 
     grid = Grid(
         coords,
@@ -204,10 +211,17 @@ def _place_nodes_lgl(
         vertices_layer = vertices_bfs[jprev:jcurr]
         parents_layer = parents[jprev:jcurr]
 
-        print(f"Layer {ilayer}/{nlayers - 1}")
-        print("vertices_layer:", vertices_layer)
-        print("parents_layer:", parents_layer)
+        if DEBUG_LGL:
+            print(f"Layer {ilayer}/{nlayers - 1}")
+            print("vertices_layer:", vertices_layer)
+            print("parents_layer:", parents_layer)
 
+        # Grid center before adding this layer's children, normalised
+        grid_center = grid.center
+        grid_center /= np.linalg.norm(grid_center + 1e-10)
+
+        # Directional biases of each individual vertex, so its children will be
+        # placed rougly as a cloud around it with some bias away from the parent
         impulses = coords[vertices_layer] - coords[parents_layer]
         impulses /= np.linalg.norm(impulses + 1e-10, axis=1)[:, np.newaxis]
 
@@ -216,14 +230,16 @@ def _place_nodes_lgl(
         for vertex_idx, impulse_vertex, cell_vertex in zip(vertices_layer, impulses, cell_vertices):
             children_idx = vertices_bfs[parents == vertex_idx]
 
-            print(f" Placing vertex {vertex_idx} with {len(children_idx)} children")
-            print("vertex_idx", vertex_idx)
-            print("children_idx", children_idx)
+            if DEBUG_LGL:
+                print(f" Placing vertex {vertex_idx} with {len(children_idx)} children")
+                print("vertex_idx", vertex_idx)
+                print("impulse_vertex", impulse_vertex)
+                print("children_idx", children_idx)
 
             # Children of the root are spread evenly in a circle,
-            # for the later layers use rotationally symmetric random sampling via Gaussians
+            # for the later layers use rotationally symmetric random sampling
+            children_offset = np.zeros((len(children_idx), 2), dtype=np.float64)
             if ilayer == 1:
-                children_offset = np.zeros((len(children_idx), 2), dtype=np.float64)
                 # NOTE: This is needed for extreme numerical precision when only one layer
                 # is present. It's a corner case but common in testing
                 if len(children_idx) == 2:
@@ -234,16 +250,22 @@ def _place_nodes_lgl(
                     children_offset[:, 1] = np.sin(thetas)
                     del thetas
             else:
-                children_offset = np.random.normal(loc=0.0, scale=1.0, size=(len(children_idx), 2))
-                children_offset /= np.linalg.norm(children_offset + 1e-10, axis=1)[:, None]
+                thetas = np.random.uniform(0, 2 * np.pi, size=len(children_idx))
+                children_offset[:, 0] = np.cos(thetas)
+                children_offset[:, 1] = np.sin(thetas)
+                del thetas
 
-            # Later layers need thicker shells to accomodate presumably larger numbers of nodes
-            # Obviously this assumption is somewhat broken if the graph has a special structure.
-            # TODO: We could improve this scaling based on how many nodes have been seen +
-            # how many actually need to be placed in this one layer
-            children_offset *= layer_scale / ilayer
-
-            coords_children = grid.center + coords[vertex_idx] + impulse_vertex + children_offset
+            # This is the heuristic that guesses where to place children given the parent
+            # plus a few different sources of bias. It looks pretty rough to me. In igraph,
+            # parent_bias_scale is a mysterious constant 1.0 (as above) but in practice
+            # that seems pretty irrelevant in many cases compared to the layer_scale bias
+            # and the position of vertex_id (which is itself subject to layer_scale).
+            # We'll leave it as is for now, but this might warrant further investigation.
+            coords_children = (
+                coords[vertex_idx]
+                + parent_bias_scale * (grid_center + impulse_vertex)
+                + layer_scale / ilayer * children_offset
+            )
 
             # Center + parent + nomalised parent impulse + rotational randomness
             grid.add(children_idx, coords_children)

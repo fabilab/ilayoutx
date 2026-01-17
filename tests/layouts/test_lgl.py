@@ -70,7 +70,7 @@ noforcedata = [
 
 
 @pytest.mark.parametrize("nchildren,expected", noforcedata)
-def test_noforce(helpers, nchildren, expected):
+def test_noforce_onelayer(helpers, nchildren, expected):
     """Test basic LGL layout against igraph's internal implementation.
 
     NOTE: LGL places the nodes according to a tree first and relaxes a force-like
@@ -97,9 +97,55 @@ def test_noforce(helpers, nchildren, expected):
     pos_ig = pd.DataFrame(pos_ig)
     pos_ig.columns = pos_ilx.columns
 
-    # TODO: No way this actually works
     np.testing.assert_allclose(
         pos_ilx.values,
         pos_ig.values,
         atol=1e-14,
+    )
+
+
+def test_noforce_multilayer(helpers):
+    """Test LGL without forces, 2+ layers."""
+    edges_1 = [(1, 3 + x) for x in range(50)]
+    edges_2 = [(2, 3 + len(edges_1) + x) for x in range(50)]
+    g = ig.Graph(edges=[(0, 1), (0, 2)] + edges_1 + edges_2, directed=True)
+
+    initial_coords = np.zeros((g.vcount(), 2))
+
+    # NOTE:This scale thing is kind of awkward, perhaps broken in networkx
+    pos_ilx = ilx.layouts.large_graph_layout(
+        g,
+        initial_coords=initial_coords,
+        max_iter=0,
+        root=0,
+    )
+
+    np.testing.assert_allclose(
+        pos_ilx.values[:3],
+        68.6666666667 * np.array([[0, 0], [1, 0], [-1, 0]]),
+        atol=1e-14,
+    )
+
+    # Check edges_1: the [1, 0] correction is the impulse of vertex 1
+    dist_e1 = np.linalg.norm(
+        pos_ilx.values[3 : 3 + len(edges_1)] - (pos_ilx.values[1] + np.array([1, 0])),
+        axis=1,
+    )
+    np.testing.assert_allclose(
+        dist_e1,
+        34.32681154 * np.ones(len(edges_1)),
+        rtol=1e-3,
+        atol=1e-3,
+    )
+
+    # Check edges_1: the [-1, 0] correction is the impulse of vertex 2
+    dist_e1 = np.linalg.norm(
+        pos_ilx.values[3 + len(edges_1) :] - (pos_ilx.values[2] - np.array([1, 0])),
+        axis=1,
+    )
+    np.testing.assert_allclose(
+        dist_e1,
+        34.32681154 * np.ones(len(edges_2)),
+        rtol=1e-3,
+        atol=1e-3,
     )
