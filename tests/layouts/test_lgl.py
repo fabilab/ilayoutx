@@ -9,9 +9,6 @@ import ilayoutx as ilx
 ig = pytest.importorskip("igraph")
 
 
-ilx.layouts.large_graph_layout = ilx.experimental.layouts.large_graph_layout
-
-
 def test_empty(helpers):
     g = ig.Graph()
 
@@ -92,6 +89,9 @@ def test_noforce_onelayer(helpers, nchildren, expected):
         root=0,
     )
 
+    helpers.check_generic_layout(pos_ilx)
+    assert pos_ilx.shape == (g.vcount(), 2)
+
     pos_ig = (nchildren + 1) * np.array(expected)
 
     pos_ig = pd.DataFrame(pos_ig)
@@ -119,6 +119,9 @@ def test_noforce_multilayer(helpers):
         max_iter=0,
         root=0,
     )
+
+    helpers.check_generic_layout(pos_ilx)
+    assert pos_ilx.shape == (g.vcount(), 2)
 
     np.testing.assert_allclose(
         pos_ilx.values[:3],
@@ -149,3 +152,35 @@ def test_noforce_multilayer(helpers):
         rtol=1e-3,
         atol=1e-3,
     )
+
+
+def test_large_layout(helpers):
+    n = 1000
+    g = ig.Graph.Erdos_Renyi(n, m=2 * n, directed=False)
+    initial_coords = np.zeros((g.vcount(), 2))
+
+    layout = ilx.layouts.large_graph_layout(
+        g,
+        initial_coords=initial_coords,
+        max_iter=10,
+        root=0,
+        center=(0, 0),
+        scaling=1.0,
+    )
+
+    helpers.check_generic_layout(layout)
+    assert layout.shape == (g.vcount(), 2)
+
+    # Make sure the distance between connected nodes is short
+    edges = np.array(g.get_edgelist())
+    nonedges = np.random.randint(0, n, size=(len(edges), 2))
+
+    deltas = layout.values[edges[:, 1]] - layout.values[edges[:, 0]]
+    dists = np.linalg.norm(deltas, axis=1)
+
+    deltas_non = layout.values[nonedges[:, 1]] - layout.values[nonedges[:, 0]]
+    dists_non = np.linalg.norm(deltas_non, axis=1)
+
+    # Check that edges tend to be shorter than non-edges
+    # This is clearer from the cumulative distrubutions, but for now an ok check
+    assert (dists < dists_non).mean() > 0.7

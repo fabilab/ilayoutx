@@ -58,6 +58,26 @@ def _recenter_layout(
     coords += shift
 
 
+def _rescale_layout(
+    coords: np.ndarray,
+    scaling: float,
+) -> None:
+    """Rescale a single layout in place by a given scaling factor.
+
+    Parameters:
+        layout: The layout to rescale. A pandas DataFrame with 'x' and 'y' columns (among others).
+        scaling: The scaling factor to apply.
+    Returns:
+        None. The input layout is modified in place.
+    """
+    max_xy = coords.max(axis=0)
+    min_xy = coords.min(axis=0)
+    deltas = max_xy - min_xy
+    max_delta = deltas.max()
+    if max_delta > 0:
+        coords *= scaling / max_delta
+
+
 def _recenter_layouts(
     new_layouts: list[pd.DataFrame],
     center: tuple[float, float],

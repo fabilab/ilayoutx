@@ -19,6 +19,7 @@ from .gem_layouts import graph_embedder
 from .sugiyama_layouts import sugiyama
 from .geometric_layouts import geometric
 from .umap_layouts import umap
+from .lgl_layouts import large_graph_layout
 
 
 __all__ = (
@@ -39,4 +40,5 @@ __all__ = (
     graph_embedder.__name__,
     sugiyama.__name__,
     umap.__name__,
+    large_graph_layout.__name__,
 )

@@ -50,6 +50,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - Kamada-Kawai
   - GEM (graph embedder)
   - Geometric (from [netgraph](https://github.com/paulbrodersen/netgraph))
+  - LGL (from [igraph](https://igraph.org/))
 
 - **Directed acyclic graphs (DAGs)**:
   - Sugiyama including edge routing (only for directed graphs ATM).
@@ -62,11 +63,6 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - multipartite
   - random (supports vertex sizes)
   - multidimensional scaling (MDS)
-
-Some layout functions are written but not (well) tested, therefore to be considered experimental.
-
-- **Force-directed**:
-  - LGL (buggy)
 
 ### Packings
 - Circular packing (via [circlify](github.com/elmotec/circlify/))

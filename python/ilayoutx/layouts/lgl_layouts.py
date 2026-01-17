@@ -15,6 +15,7 @@ from ilayoutx.ingest.typing import NetworkDataProvider
 from ilayoutx.utils import (
     _format_initial_coords,
     _recenter_layout,
+    _rescale_layout,
 )
 from ilayoutx._ilayoutx import (
     random as random_rust,
@@ -26,6 +27,8 @@ DEBUG_LGL = get_debug_bool("ILAYOUTX_DEBUG_LGL", default=False)
 
 
 class Grid:
+    """Grid structure to compute interactions between closeby nodes in LGL."""
+
     def __init__(
         self,
         coords: np.ndarray,
@@ -33,6 +36,14 @@ class Grid:
         maxs: np.ndarray,
         deltas: np.ndarray,
     ):
+        """Initialise the grid.
+
+        Parameters:
+            coords: The coordinates of all nodes.
+            mins: The minimum x and y of the grid.
+            maxs: The maximum x and y of the grid.
+            deltas: The size of each cell in x and y.
+        """
         self.coords = coords
         self.mins = mins
         self.maxs = maxs
@@ -89,6 +100,12 @@ class Grid:
         """
         cells_indices = self.get_cells(indices)
 
+        if DEBUG_LGL:
+            if len(cells_indices) > 0:
+                print("Getting neighboring cells for cell:", cell)
+                print("Cell indices:")
+                print(cells_indices)
+
         # Start with the cell itself
         samecell_idx = (cells_indices == cell).all(axis=1)
 
@@ -103,6 +120,128 @@ class Grid:
             samecell_idx |= (cells_indices == cell + [0, -1]).all(axis=1)
 
         return indices[samecell_idx]
+
+
+def _apply_forces(
+    coords: np.ndarray,
+    grid: Grid,
+    edges_samecell: np.ndarray,
+    area,
+    etol: float,
+    max_iter: int,
+    max_delta: float,
+) -> None:
+    """Apply relaxation forces to a single layer of LGL.
+
+    Parameters:
+        coords: The coordinates of all nodes.
+        grid: The grid object.
+        edges_samecell: The edges within the same cell for this layer.
+        area: The area of the layout.
+        etol: Gradient sum of spring forces must be larger than etol before successful termination.
+        max_iter: Max iterations before termination of the algorithm.
+        max_delta: Maximum allowed movement per iteration.
+    Returns:
+        None. The coords array is modified in place.
+    """
+
+    # Force parameters
+    nv = coords.shape[0]
+    force_k = np.sqrt(area / nv)
+    repel_saddle = area * nv
+    force = np.zeros((nv, 2), dtype=np.float64)
+
+    # Iterate forces for this one layer
+    maxchange = etol + 1
+    for niter in range(max_iter):
+        # Learning rate (decreasing 1 -> 0, decelerating)
+        # | \
+        # |  \
+        # |   -\
+        # |     -\
+        # |       ---___
+        # _______________
+        # If the exponent was 1.0, it would not slow down. If the
+        # exponent was larger, it would break faster.
+        eta = ((max_iter - niter) / max_iter) ** 1.5
+        t = max_delta * eta
+
+        force[:] = 0
+        maxchange = 0.0
+
+        # Attract along vetted, cross-layer edges, independent of grid cells
+        if len(edges_samecell) > 0:
+            delta_edges = coords[edges_samecell[:, 1]] - coords[edges_samecell[:, 0]]
+            dist = np.linalg.norm(delta_edges)
+            nonoverlap_idx = dist > 0
+            # NOTE: This is a cheap way to zero contribution from
+            # overlapping vertices without changing edges_samecell,
+            # which should remain the same across the while loop
+            delta_edges[~nonoverlap_idx] = 0
+            force_abs = dist * dist / force_k
+            np.add.at(force, edges_samecell[:, 0], force_abs * delta_edges)
+            np.add.at(force, edges_samecell[:, 1], -force_abs * delta_edges)
+
+        # Repel anything within the cell
+        coords_added = grid.coords[grid.added]
+        cells_added = grid.get_cells(grid.added)
+        tmp = pd.DataFrame(cells_added, columns=["cell_x", "cell_y"])
+        tmp["idx_added"] = np.arange(len(tmp))
+        gby = tmp.groupby(["cell_x", "cell_y"])
+        # FIXME: figure out a bit better what vertices are considered here
+        for (idx_x, idx_y), vertices_cell in gby:
+            ncell = len(vertices_cell)
+            if ncell < 2:
+                continue
+            idx_cell = vertices_cell["idx_added"].values
+            coords_cell = coords_added[idx_cell]
+            delta_cell = coords_cell[:, np.newaxis, :] - coords_cell[np.newaxis, :, :]
+            dist2_cell = np.sum(delta_cell**2, axis=-1)
+            dist2_cell = np.maximum(dist2_cell, etol * etol)
+            delta_cell /= np.sqrt(dist2_cell)[:, :, np.newaxis]
+            force_abs = force_k**2 * (1.0 / np.sqrt(dist2_cell) - dist2_cell / repel_saddle)
+            # Remove self-repulsion
+            # NOTE: we could also exclude whenever mg0 == mg1, which are the
+            # self-repulsions, but that would require allocating new arrays
+            # that are of the same order of magnitude in size as these,
+            # hence less efficient than adding a small number of zeros
+            force_abs[np.arange(ncell), np.arange(ncell)] = 0.0
+
+            # Add force onto each vertex, in opposite directions
+            mg0, mg1 = np.meshgrid(idx_cell, idx_cell)
+            delta_cell = delta_cell.reshape((ncell * ncell, 2))
+            mg0 = mg0.reshape(ncell * ncell)
+            mg1 = mg1.reshape(ncell * ncell)
+            force_abs = force_abs.ravel()
+            # NOTE: because the matrices are symmetric and the diagonal
+            # is not useful but also not a problem (it's zero and operations
+            # are addition and subtraction), we can take the top half of
+            # these matrices after raveling, sacrifice the central diagonal
+            # element if ncell is odd and keep it if even (its value is zero)
+            # and perform the add/subtract operation only once. The order of
+            # indices is kind of awkward, but they are there once and  only once
+            # NOTE: all these raveled matrices have the same length, ncell**2
+            delta_cell = delta_cell[: len(delta_cell) // 2]
+            mg0 = mg0[: len(mg0) // 2]
+            mg1 = mg1[: len(mg1) // 2]
+            force_abs = force_abs[: len(force_abs) // 2]
+            np.add.at(force, mg0, delta_cell * force_abs[:, None])
+            np.add.at(force, mg1, -delta_cell * force_abs[:, None])
+
+        # Move the nodes, with force clipped in absolute value
+        force_abs = np.linalg.norm(force, axis=1)
+        idx_exceed = force_abs > t
+        force[idx_exceed] *= t / force_abs[idx_exceed, None]
+        coords[:] += force
+
+        # Record max change
+        # NOTE: the igraph implementation does not include an absolute value here,
+        # that looks kind of sus
+        maxchange = max(maxchange, force.max())
+
+        # Housekeeping
+        if maxchange <= etol:
+            break
 
 
 def _place_nodes_lgl(
@@ -157,6 +296,12 @@ def _place_nodes_lgl(
     area_side = np.sqrt(area / np.pi)
     cell_size = int(np.ceil(np.sqrt(nv)))
 
+    if DEBUG_LGL:
+        print("LGL layout parameters:")
+        print(" area:", area)
+        print(" area_side:", area_side)
+        print(" cell_size:", cell_size)
+
     # Compute minimum spanning tree. For now (as igraph), we ignore weights
     # and therefore any spanning tree via bfs is fine. If we want to use
     # weights, the issue is mostly getting the different providers' API
@@ -189,12 +334,6 @@ def _place_nodes_lgl(
         deltas=np.array([cell_size, cell_size], dtype=np.float64),
     )
 
-    # Force parameters
-    force_k = np.sqrt(area / nv)
-    repel_saddle = area * nv
-
-    force = np.zeros((nv, 2), dtype=np.float64)
-
     # Place root
     grid.add(
         root_idx,
@@ -204,7 +343,6 @@ def _place_nodes_lgl(
     # Iterate over layers away from the root
     for ilayer in range(1, nlayers):
         max_delta = 1.0 + etol
-        edges_samecell = []
 
         # 1. Place nodes in layer in a circle
         jprev, jcurr = layer_switch[ilayer - 1], layer_switch[ilayer]
@@ -270,102 +408,40 @@ def _place_nodes_lgl(
             # Center + parent + nomalised parent impulse + rotational randomness
             grid.add(children_idx, coords_children)
 
-            # 2. Record which of these children are within the same cell as their parent
-            #    NOTE: This obviously makes a mess when the two nodes are right across a cell boundary,
-            #    since the algorithm seems to ignore this case. I guess it's quantisation, baby.
+        # 2. Record which of these children are within the same cell as their parent
+        #    NOTE: This obviously makes a mess when the two nodes are right across a cell boundary,
+        #    since the algorithm seems to ignore this case. I guess it's quantisation, baby.
+        edges_samecell = []
+        for vertex_idx, cell_vertex in zip(vertices_layer, cell_vertices):
+            children_idx = vertices_bfs[parents == vertex_idx]
             samecell_idx = grid.get_idx_neighboring_cells(
                 children_idx,
                 cell_vertex,
             )
             for child_idx in samecell_idx:
                 edges_samecell.append((vertex_idx, child_idx))
-
         edges_samecell = np.array(edges_samecell)
 
-        # 3. Compute forces along those vetted edges
-        maxchange = etol + 1
-        # Iterate forces for this one layer
-        for niter in range(1, max_iter):
-            # Learning rate (decreasing 1 -> 0, decelerating)
-            eta = ((max_iter - niter) / max_iter) ** 1.5
-            t = max_delta * eta
+        if DEBUG_LGL:
+            print("Vetted edges in the same cell for this layer:")
+            print(edges_samecell)
 
-            force[:] = 0
-            maxchange = 0.0
-
-            # Attract along vetted, cross-layer edges, independent of grid cells
-            if len(edges_samecell) > 0:
-                delta_edges = coords[edges_samecell[:, 1]] - coords[edges_samecell[:, 0]]
-                dist = np.linalg.norm(delta_edges)
-                nonoverlap_idx = dist > 0
-                # NOTE: This is a cheap way to zero contribution from
-                # overlapping vertices without changing edges_samecell,
-                # which should remain the same across the while loop
-                delta_edges[~nonoverlap_idx] = 0
-                force_abs = dist * dist / force_k
-                np.add.at(force, edges_samecell[:, 0], force_abs * delta_edges)
-                np.add.at(force, edges_samecell[:, 1], -force_abs * delta_edges)
-
-            # Repel anything within the cell
-            coords_added = grid.coords[grid.added]
-            cells_added = grid.get_cells(grid.added)
-            tmp = pd.DataFrame(cells_added, columns=["cell_x", "cell_y"])
-            tmp["idx_added"] = np.arange(len(tmp))
-            gby = tmp.groupby(["cell_x", "cell_y"])
-            # FIXME: figure out a bit better what vertices are considered here
-            for (idx_x, idx_y), vertices_cell in gby:
-                ncell = len(vertices_cell)
-                if ncell < 2:
-                    continue
-                idx_cell = vertices_cell["idx_added"].values
-                coords_cell = coords_added[idx_cell]
-                delta_cell = coords_cell[:, np.newaxis, :] - coords_cell[np.newaxis, :, :]
-                dist2_cell = np.sum(delta_cell**2, axis=-1)
-                dist2_cell = np.maximum(dist2_cell, etol * etol)
-                delta_cell /= np.sqrt(dist2_cell)[:, :, np.newaxis]
-                force_abs = force_k**2 * (1.0 / np.sqrt(dist2_cell) - dist2_cell / repel_saddle)
-                # Remove self-repulsion
-                # NOTE: we could also exclude whenever mg0 == mg1, which are the
-                # self-repulsions, but that would require allocating new arrays
-                # that are of the same order of magnitude in size as these,
-                # hence less efficient than adding a small number of zeros
-                force_abs[np.arange(ncell), np.arange(ncell)] = 0.0
-
-                # Add force onto each vertex, in opposite directions
-                mg0, mg1 = np.meshgrid(idx_cell, idx_cell)
-                delta_cell = delta_cell.reshape((ncell * ncell, 2))
-                mg0 = mg0.reshape(ncell * ncell)
-                mg1 = mg1.reshape(ncell * ncell)
-                force_abs = force_abs.ravel()
-                # NOTE: because the matrices are symmetric and the diagonal
-                # is not useful but also not a problem (it's zero and operations
-                # are addition and subtraction), we can take the top half of
-                # these matrices after raveling, sacrifice the central diagonal
-                # element if ncell is odd and keep it if even (its value is zero)
-                # and perform the add/subtract operation only once. The order of
-                # indices is kind of awkward, but they are there once and  only once
-                # NOTE: all these raveled matrices have the same length, ncell**2
-                delta_cell = delta_cell[: len(delta_cell) // 2]
-                mg0 = mg0[: len(mg0) // 2]
-                mg1 = mg1[: len(mg1) // 2]
-                force_abs = force_abs[: len(force_abs) // 2]
-                np.add.at(force, mg0, delta_cell * force_abs[:, None])
-                np.add.at(force, mg1, -delta_cell * force_abs[:, None])
-
-            # Move the nodes, with force clipped in absolute value
-            force_abs = np.linalg.norm(force, axis=1)
-            idx_exceed = force_abs > t
-            force[idx_exceed] *= t / force_abs[idx_exceed, None]
-            coords[:] += force
-
-            # Record max change
-            # NOTE: the igraph implementation does not include an absolute value here,
-            # that looks kind of sus
-            maxchange = max(maxchange, force.max())
-
-            # Housekeeping
-            if maxchange <= etol:
-                break
+        # 3. Compute forces along those vetted edges, for the curernt layer only
+        # NOTE: This is the only "iterative" part of LGL, everything else is direct placement
+        # Each layer is relaxed hierarchically from the root outwards.
+        if DEBUG_LGL:
+            print("Applying forces for this layer...")
+        _apply_forces(
+            coords,
+            grid,
+            edges_samecell,
+            area,
+            etol,
+            max_iter,
+            max_delta,
+        )
+        if DEBUG_LGL:
+            print("...done applying forces for this layer.")
 
     return coords
 
@@ -379,6 +455,7 @@ def large_graph_layout(
         | pd.DataFrame
     ] = None,
     center: Optional[tuple[float, float]] = None,
+    scaling: Optional[float] = None,
     etol: float = 1e-6,
     max_iter: int = 1000,
     root: Hashable = None,
@@ -390,7 +467,8 @@ def large_graph_layout(
     Parameters:
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes. See also the "inplace" parameter.
-        center: The center of the layout.
+        center: If not None, recenter the layout around this point.
+        scaling: If not None, rescale so that the largest of the x and y dynamic ranges matches this value.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         max_iter: Max iterations before termination of the algorithm.
         seed: A random seed to use.
@@ -430,6 +508,9 @@ def large_graph_layout(
 
     if center is not None:
         _recenter_layout(coords, center)
+
+    if scaling is not None:
+        _rescale_layout(coords, scaling)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
