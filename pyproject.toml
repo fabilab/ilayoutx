@@ -50,13 +50,16 @@ classifiers = [
 ]
 
 [dependency-groups]
-test = [
+test-noumap = [
   "pytest>=7.0.0",
   "flake8>=3.9.0",
   "igraph>=0.11.8",
   "networkx>=3.4.2",
   #"pandas-stubs>=2.2.3.250527",
   "types-networkx>=3.5.0.20250610",
+]
+test = [
+  {include-group = "test-noumap"},
   "umap-learn>=0.5.11",
 ]
 docs = [

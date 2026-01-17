@@ -14,7 +14,7 @@ tasks:
       .venv/bin/pip install .
   - setup_test: |
       cd ilayoutx
-      .venv/bin/pip install --group test
+      .venv/bin/pip install --group test-noumap
   - test: |
       cd ilayoutx
       .venv/bin/pytest
