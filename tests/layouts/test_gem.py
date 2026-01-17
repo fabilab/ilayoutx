@@ -8,7 +8,7 @@ import ilayoutx as ilx
 ig = pytest.importorskip("igraph")
 
 
-def test_gem_empty(helpers):
+def test_empty(helpers):
     g = ig.Graph()
 
     layout = ilx.layouts.graph_embedder(g)
@@ -18,7 +18,7 @@ def test_gem_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_gem_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = ig.Graph(n=1)
 
     kwargs = {}
@@ -51,7 +51,7 @@ def test_gem_singleton(helpers, center):
         (None, 0),
     ],
 )
-def test_gem_losing_matches(helpers, max_iter, n_matches_expected):
+def test_losing_matches(helpers, max_iter, n_matches_expected):
     """Test basic ARF layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause

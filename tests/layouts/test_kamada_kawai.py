@@ -9,7 +9,7 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_kk_empty(helpers):
+def test_empty(helpers):
     g = nx.Graph()
 
     layout = ilx.layouts.kamada_kawai(g)
@@ -19,7 +19,7 @@ def test_kk_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_kk_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
@@ -41,7 +41,7 @@ def test_kk_singleton(helpers, center):
     )
 
 
-def test_kk_basic(helpers):
+def test_basic(helpers):
     """Test basic FA2 layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause

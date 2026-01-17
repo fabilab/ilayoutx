@@ -9,7 +9,7 @@ import ilayoutx as ilx
 ig = pytest.importorskip("igraph")
 
 
-def test_geometric_empty(helpers):
+def test_empty(helpers):
     g = ig.Graph()
 
     layout = ilx.layouts.geometric(g, edge_lengths={})
@@ -19,7 +19,7 @@ def test_geometric_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_geometric_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = ig.Graph(n=1)
 
     kwargs = {}
@@ -40,7 +40,7 @@ def test_geometric_singleton(helpers, center):
     )
 
 
-def test_geometric_ring(helpers):
+def test_ring(helpers):
     """Test geometric layout on a small ring."""
     g = ig.Graph.Ring(3)
 

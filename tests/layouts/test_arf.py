@@ -9,7 +9,7 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_arf_empty(helpers):
+def test_empty(helpers):
     g = nx.Graph()
 
     layout = ilx.layouts.arf(g)
@@ -19,7 +19,7 @@ def test_arf_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_arf_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
@@ -42,7 +42,7 @@ def test_arf_singleton(helpers, center):
 
 
 @pytest.mark.parametrize("max_iter", [0, 1, 10, 30, 100, 300, 1000])
-def test_arf_basic(helpers, max_iter):
+def test_basic(helpers, max_iter):
     """Test basic ARF layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause

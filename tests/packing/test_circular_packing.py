@@ -8,7 +8,7 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_circular_packing_empty(helpers):
+def test_empty(helpers):
     """Test empty list of layouts."""
     empty_df = ilx.packing.circular([])
     helpers.check_generic_packing_concatenate(empty_df)
@@ -17,7 +17,7 @@ def test_circular_packing_empty(helpers):
     helpers.check_generic_packing_nonconcatenate(empty_list)
 
 
-def test_circular_packing_singleton(helpers):
+def test_singleton(helpers):
     """Test singleton list of layouts."""
     g = nx.path_graph(1)
     layout = ilx.layouts.line(g)
@@ -80,7 +80,7 @@ diamond_data = [
 
 
 @pytest.mark.parametrize("ndiamonds,expected", diamond_data)
-def test_circular_packing_basic(helpers, ndiamonds, expected):
+def test_basic(helpers, ndiamonds, expected):
     g = nx.circulant_graph(4, [1])
     layout = ilx.layouts.circle(g)
 
@@ -88,12 +88,19 @@ def test_circular_packing_basic(helpers, ndiamonds, expected):
     helpers.check_generic_packing_concatenate(packing_df)
 
     assert packing_df.shape == (4 * ndiamonds, 4)
+
     np.testing.assert_allclose(
         packing_df[["x", "y"]].values,
         expected,
         atol=1e-7,
         rtol=1e-7,
     )
+
+
+@pytest.mark.parametrize("ndiamonds,expected", diamond_data)
+def test_basic_nonconcat(helpers, ndiamonds, expected):
+    g = nx.circulant_graph(4, [1])
+    layout = ilx.layouts.circle(g)
 
     packing_list = ilx.packing.circular([layout] * ndiamonds, concatenate=False, padding=0)
     helpers.check_generic_packing_nonconcatenate(packing_list)

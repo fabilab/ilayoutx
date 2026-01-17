@@ -10,7 +10,7 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_spring_empty(helpers):
+def test_empty(helpers):
     g = nx.Graph()
 
     layout = ilx.layouts.spring(g)
@@ -20,7 +20,7 @@ def test_spring_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_spring_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
@@ -43,7 +43,7 @@ def test_spring_singleton(helpers, center):
 
 
 @pytest.mark.parametrize("max_iter", [0, 1, 10, 30])
-def test_spring_basic(helpers, max_iter):
+def test_basic(helpers, max_iter):
     """Test basic spring layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause
@@ -77,7 +77,7 @@ def test_spring_basic(helpers, max_iter):
     "max_iter,fixed",
     list(product([0, 1, 10, 30], [[], [0], [0, 1, 2, 3]])),
 )
-def test_spring_fixed(helpers, max_iter, fixed):
+def test_fixed(helpers, max_iter, fixed):
     """Test basic spring layout against NetworkX's internal implementation.
 
     NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause

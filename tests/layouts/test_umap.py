@@ -9,7 +9,7 @@ import ilayoutx as ilx
 nx = pytest.importorskip("networkx")
 
 
-def test_umap_empty(helpers):
+def test_empty(helpers):
     g = nx.Graph()
 
     layout = ilx.layouts.umap(g)
@@ -19,7 +19,7 @@ def test_umap_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_umap_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = nx.DiGraph()
     g.add_node(0)
 
@@ -42,7 +42,7 @@ def test_umap_singleton(helpers, center):
 
 
 @pytest.mark.parametrize("n1,n2", [(20, 10), (5, 5)])
-def test_umap_two_clumps(helpers, n1, n2):
+def test_two_clumps(helpers, n1, n2):
     """Test a pair of clumps."""
 
     g1 = nx.complete_graph(n1)

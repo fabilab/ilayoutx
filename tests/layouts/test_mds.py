@@ -1,15 +1,15 @@
 """Test GEM layouts."""
 
+import platform
 import pytest
 import numpy as np
-import pandas as pd
 
 import ilayoutx as ilx
 
 ig = pytest.importorskip("igraph")
 
 
-def test_mds_empty(helpers):
+def test_empty(helpers):
     g = ig.Graph()
 
     layout = ilx.layouts.multidimensional_scaling(g)
@@ -19,7 +19,7 @@ def test_mds_empty(helpers):
 
 
 @pytest.mark.parametrize("center", [None, (0, 0), (1, 2.0)])
-def test_mds_singleton(helpers, center):
+def test_singleton(helpers, center):
     g = ig.Graph(n=1)
 
     kwargs = {}
@@ -40,7 +40,7 @@ def test_mds_singleton(helpers, center):
     )
 
 
-def test_mds_disconnected(helpers):
+def test_disconnected(helpers):
     """Test exception for disconnected graphs."""
 
     ilx.layouts.multidimensional_scaling(ig.Graph(n=0), check_connectedness=True)
@@ -49,8 +49,12 @@ def test_mds_disconnected(helpers):
         ilx.layouts.multidimensional_scaling(ig.Graph(n=2), check_connectedness=True)
 
 
+@pytest.mark.skipif(
+    (platform.system() != "Linux") or (platform.machine() != "x86_64"),
+    reason="MDS layout is OS-dependent, tests for Linux amd64 only",
+)
 @pytest.mark.parametrize("nv,radius", [(4, 1.0), (9, 2.0), (14, 3.177), (17, 3.815), (30, 6.765)])
-def test_mds_ring(helpers, nv, radius):
+def test_ring(helpers, nv, radius):
     """Test MDS on a circulant graph."""
     g = ig.Graph.Ring(nv)
 
