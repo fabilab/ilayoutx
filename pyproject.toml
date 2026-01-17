@@ -57,6 +57,7 @@ test = [
   "networkx>=3.4.2",
   #"pandas-stubs>=2.2.3.250527",
   "types-networkx>=3.5.0.20250610",
+  "umap-learn>=0.5.11",
 ]
 docs = [
   "sphinx",
