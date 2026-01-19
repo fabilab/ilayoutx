@@ -1,5 +1,5 @@
-use numpy::ndarray::{ArrayView2, ArrayViewMut2};
-use numpy::{PyArray2, PyArrayMethods, PyReadonlyArray2};
+use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut2};
+use numpy::{PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use rand::Rng;
 
@@ -77,6 +77,7 @@ fn _apply_repulsion_single(
 fn _apply_forces_single_edge(
     edges: &ArrayView2<'_, i64>,
     coords: &mut ArrayViewMut2<'_, f32>,
+    fixed: &ArrayView1<'_, bool>,
     a: f32,
     b: f32,
     alpha: f32,
@@ -91,6 +92,9 @@ fn _apply_forces_single_edge(
     let dst = *edges.get([i, 1]).unwrap() as usize;
     if (src >= n) | (dst >= n) {
         panic!("Edge index out of bounds");
+    }
+    if *fixed.get([src]).unwrap() {
+        return;
     }
 
     let displacement = move_single_edge_nodes(
@@ -111,9 +115,11 @@ fn _apply_forces_single_edge(
     *coords.get_mut([src, 0]).unwrap() += alpha * displacement[0];
     *coords.get_mut([src, 1]).unwrap() += alpha * displacement[1];
 
-    // This is not a mapping to an existing embedding, so move the target node as well
-    *coords.get_mut([dst, 0]).unwrap() -= alpha * displacement[0];
-    *coords.get_mut([dst, 1]).unwrap() -= alpha * displacement[1];
+    // Move the target node as well unless it's fixed (templated layout)
+    if !(*fixed.get([dst]).unwrap()) {
+        *coords.get_mut([dst, 0]).unwrap() -= alpha * displacement[0];
+        *coords.get_mut([dst, 1]).unwrap() -= alpha * displacement[1];
+    }
 
     // NOTE: Parallelising this bit is useless and slows things down
     // The commented code here below is for educational purposes only
@@ -139,12 +145,13 @@ fn _apply_forces_single_edge(
     *coords.get_mut([src, 1]).unwrap() += alpha * displacement_neg[1];
 }
 
-/// Compute attractive forces for UMAP
+/// Compute stochastic forces for UMAP
 ///
 /// Parameters:
 ///     edges (numpy.ndarray): An array of shape (m, 2) containing the target indices of the edges.
 ///     coords (numpy.ndarray): An array of shape (n, 2) containing the component index of each
 ///     vertex.
+///     fixed (numpy.ndarray): A boolean array of shape (n, ) indicating which nodes are fixed.
 ///     a (float): The 'a' parameter for the UMAP attractive force function.
 ///     b (float): The 'b' parameter for the UMAP attractive force function.
 ///     alpha (float): The learning rate for the attractive forces.
@@ -152,10 +159,11 @@ fn _apply_forces_single_edge(
 /// Returns:
 ///     Nothing
 #[pyfunction]
-#[pyo3(signature = (edges, coords, ab, alpha, clip=4.0, negative_sampling_rate=5))]
+#[pyo3(signature = (edges, coords, fixed, ab, alpha, clip=4.0, negative_sampling_rate=5))]
 pub fn _umap_apply_forces(
     edges: PyReadonlyArray2<'_, i64>,
     coords: &Bound<'_, PyArray2<f32>>,
+    fixed: PyReadonlyArray1<'_, bool>,
     ab: (f32, f32),
     alpha: f32,
     clip: f32,
@@ -164,6 +172,7 @@ pub fn _umap_apply_forces(
     let a = ab.0;
     let b = ab.1;
     let edges = edges.as_array();
+    let fixed = fixed.as_array();
     let m = edges.shape()[0];
     let m2 = edges.shape()[1];
 
@@ -180,6 +189,7 @@ pub fn _umap_apply_forces(
         _apply_forces_single_edge(
             &edges,
             &mut coords,
+            &fixed,
             a,
             b,
             alpha,

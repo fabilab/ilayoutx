@@ -15,12 +15,15 @@ from ilayoutx.ingest import (
     network_library,
     data_providers,
 )
-from ilayoutx.utils import _format_initial_coords
+from ilayoutx.utils import (
+    _format_initial_coords,
+    _format_fixed_nodes,
+    _recenter_layout,
+)
 from ilayoutx._ilayoutx import (
     random as random_rust,
     _umap_apply_forces as _apply_forces_rust,
 )
-from ilayoutx.utils import _recenter_layout
 from ilayoutx.experimental.utils import get_debug_bool
 
 # NOTE: This is only here for future tests in terms of edge
@@ -310,6 +313,7 @@ def _fuzzy_symmetrisation(
 def _apply_forces(
     sym_edge_df: pd.DataFrame,
     coords: np.ndarray,
+    fixed: np.ndarray,
     a: float,
     b: float,
     n_epoch: int,
@@ -376,6 +380,7 @@ def _apply_forces(
     _apply_forces_rust(
         sym_edge_df[["source", "target"]].values[idx_edges].astype(np.int64),
         coords,
+        fixed,
         (a, b),
         alpha,
         max_displacement,
@@ -387,6 +392,7 @@ def _stochastic_gradient_descent(
     sym_edge_df: pd.DataFrame,
     nv: int,
     initial_coords: np.ndarray,
+    fixed: np.ndarray,
     a: float,
     b: float,
     initial_alpha: float = 1.0,
@@ -402,6 +408,7 @@ def _stochastic_gradient_descent(
     Parameters:
         sym_edge_df: DataFrame with edges and weights.
         initial_coords: Initial coordinates for the nodes.
+        fixed: Boolean array indicating which nodes are fixed.
         a: Parameter a for the UMAP curve.
         b: Parameter b for the UMAP curve.
         initial_alpha: Initial learning rate.
@@ -440,6 +447,7 @@ def _stochastic_gradient_descent(
         _apply_forces(
             sym_edge_df,
             coords,
+            fixed,
             a,
             b,
             n_epoch,
@@ -518,6 +526,7 @@ def umap(
         | np.ndarray
         | pd.DataFrame
     ] = None,
+    fixed: Optional[dict[Hashable, bool] | list[bool] | np.ndarray | pd.Series] = None,
     min_dist: float = 0.1,
     spread: float = 1.0,
     negative_sampling_rate: Optional[int] = None,
@@ -539,6 +548,8 @@ def umap(
             parameter is for advanced users who want to skip the sigma-rho distance-to-probability
             computation: use "edge_distances" otherwise.
         initial_coords: Initial coordinates for the nodes. See also the "inplace" parameter.
+        fixed: A data structure indicating which nodes should remain fixed during layout. None
+            means no nodes are fixed.
         min_dist: A fudge parameter that controls how tightly clustered the nodes will be.
             This should be considered in relationship with the following "spread" parameter.
             Smaller values will result in more tightly clustered points.
@@ -602,6 +613,10 @@ def umap(
             index=index,
             fallback=lambda: random_rust(nv, seed=seed),
             inplace=inplace,
+        )
+        fixed = _format_fixed_nodes(
+            fixed,
+            index=index,
         )
         coords = initial_coords
 
@@ -705,6 +720,7 @@ def umap(
             sym_edge_df,
             nv,
             initial_coords=coords,
+            fixed=fixed,
             a=a,
             b=b,
             n_epochs=max_iter,

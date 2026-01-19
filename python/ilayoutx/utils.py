@@ -36,6 +36,27 @@ def _format_initial_coords(
     return initial_coords
 
 
+def _format_fixed_nodes(
+    fixed: Optional[dict[Hashable, bool] | list[bool] | np.ndarray | pd.Series],
+    index: list[Hashable],
+) -> np.ndarray:
+    if fixed is None:
+        fixed = np.zeros(len(index), dtype=bool)
+    else:
+        if isinstance(fixed, dict):
+            fixed = pd.Series(fixed).loc[index].values
+        elif isinstance(fixed, np.ndarray):
+            fixed = fixed.astype(bool, copy=True)
+        elif isinstance(fixed, pd.Series):
+            fixed = fixed.loc[index].values
+        else:
+            raise TypeError(
+                "Fixed nodes must be a numpy array-like, pandas Series, or dict.",
+            )
+
+    return fixed
+
+
 def _recenter_layout(
     coords: np.ndarray,
     center: tuple[float, float],
