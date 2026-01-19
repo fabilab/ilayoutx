@@ -57,3 +57,34 @@ def test_two_clumps(helpers, n1, n2):
     for i in range(n1, n1 + n2):
         d2i = ((layout.values - layout.values[i]) ** 2).sum(axis=1)
         assert d2i[n1:].max() < d2i[:n1].min()  # Clump 2 is separate
+
+
+@pytest.mark.parametrize("n1,n2", [(20, 10), (5, 5)])
+def test_two_clumps_fixed(helpers, n1, n2):
+    """Test a pair of clumps."""
+
+    g1 = nx.complete_graph(n1)
+    g2 = nx.complete_graph(n2)
+    g = nx.disjoint_union(g1, g2)
+
+    initial_coords = np.random.rand(n1 + n2, 2) * 30
+    fixed = np.zeros(len(initial_coords), dtype=bool)
+    fixed_idx = [2, 3]
+    fixed[fixed_idx] = True
+
+    layout = ilx.layouts.umap(
+        g,
+        initial_coords=initial_coords.copy(),
+        fixed=fixed,
+    )
+
+    # NOTE: There is a np.float32 conversion in UMAP that makes this test less precise
+    np.testing.assert_allclose(
+        layout.values[fixed_idx],
+        initial_coords[fixed_idx],
+        atol=1e-5,
+        rtol=1e-5,
+    )
+
+    others_nonclose = np.linalg.norm(initial_coords[~fixed] - layout.values[~fixed], axis=1) > 1e-4
+    np.testing.assert_equal(others_nonclose, np.ones(others_nonclose.shape, dtype=bool))

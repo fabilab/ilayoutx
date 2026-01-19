@@ -392,7 +392,6 @@ def _stochastic_gradient_descent(
     sym_edge_df: pd.DataFrame,
     nv: int,
     initial_coords: np.ndarray,
-    fixed: np.ndarray,
     a: float,
     b: float,
     initial_alpha: float = 1.0,
@@ -401,6 +400,7 @@ def _stochastic_gradient_descent(
     normalize_initial_coords: bool = True,
     avoid_neighbors_repulsion: Optional[bool] = None,
     max_displacement: float = 4.0,
+    fixed: Optional[np.ndarray] = None,
     record: bool = False,
 ) -> Optional[np.ndarray]:
     """Compute the UMAP layout using stochastic gradient descent.
@@ -423,6 +423,9 @@ def _stochastic_gradient_descent(
     """
 
     coords = initial_coords
+    if fixed is None:
+        fixed = np.zeros(nv, dtype=bool)
+
     ne = len(sym_edge_df)
     next_sampling_epoch = np.zeros(ne)
 
@@ -436,8 +439,8 @@ def _stochastic_gradient_descent(
     if normalize_initial_coords:
         cmin = coords.min(axis=0)
         cmax = coords.max(axis=0)
-        coords -= cmin
-        coords *= 10.0 / (cmax - cmin)
+        coords[~fixed] = coords[~fixed] - cmin
+        coords[~fixed] = coords[~fixed] * 10.0 / (cmax - cmin)
 
     if record:
         coords_history = np.zeros((n_epochs + 1, nv, 2), dtype=np.float64)
@@ -720,12 +723,12 @@ def umap(
             sym_edge_df,
             nv,
             initial_coords=coords,
-            fixed=fixed,
             a=a,
             b=b,
             n_epochs=max_iter,
             record=record,
             negative_sampling_rate=negative_sampling_rate,
+            fixed=fixed,
         )
         if DEBUG_UMAP:
             t1 = time.time()
