@@ -7,6 +7,7 @@ mod umap;
 /// A Python module implemented in Rust.
 #[pymodule]
 fn _ilayoutx(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(basic::line, m)?)?;
     m.add_function(wrap_pyfunction!(basic::circle, m)?)?;
     m.add_function(wrap_pyfunction!(basic::random, m)?)?;
