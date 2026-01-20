@@ -1,5 +1,6 @@
 [![builds.sr.ht status](https://builds.sr.ht/~iosonofabio/ilayoutx.svg)](https://builds.sr.ht/~iosonofabio/ilayoutx?)
 [![Github Actions](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml/badge.svg)](https://github.com/fabilab/ilayoutx/actions/workflows/CI.yml)
+[![ReadTheDocs status](https://app.readthedocs.org/projects/ilayoutx/badge/?version=main)](https://ilayoutx.readthedocs.io/en/main/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/ilayoutx)](https://pypi.python.org/pypi/ilayoutx)
 [![PyPI wheels](https://img.shields.io/pypi/wheel/ilayoutx.svg)](https://pypi.python.org/pypi/ilayoutx)
 ![Coverage](coverage-badge.svg)
@@ -16,6 +17,7 @@ pip install ilayoutx
 ```
 
 ## Resources
+ - **Documentation**: https://ilayoutx.readthedocs.io/en/main
  - **Issues**: https://todo.sr.ht/~iosonofabio/ilayoutx
  - **Mailing list**: https://lists.sr.ht/~iosonofabio/ilayoutx-dev
  - **Pull Requests**: This project prefers patches via the mailing list, however PRs on GitHub are currently accepted.
