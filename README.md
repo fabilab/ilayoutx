@@ -4,7 +4,6 @@
 [![PyPI wheels](https://img.shields.io/pypi/wheel/ilayoutx.svg)](https://pypi.python.org/pypi/ilayoutx)
 ![Coverage](coverage-badge.svg)
 
-
 # ilayoutx
 
 Compute fast network layouts. Intended as the upstream companion for [iplotx](https://git.sr.ht/~iosonofabio/iplotx).
