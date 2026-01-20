@@ -1,0 +1,10 @@
+image: archlinux
+sources:
+  - https://git.sr.ht/~iosonofabio/ilayoutx
+secrets:
+  - f8980760-aa18-4583-b0c3-dc0c8ec030f3
+tasks:
+  - trigger_rtd: |
+      cd ilayoutx
+      cp ~/.rtd_token ./
+      ./update_docs.sh
