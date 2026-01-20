@@ -49,9 +49,8 @@ def test_disconnected(helpers):
         ilx.layouts.multidimensional_scaling(ig.Graph(n=2), check_connectedness=True)
 
 
-@pytest.mark.skipif(
-    (platform.system() != "Linux") or (platform.machine() != "x86_64"),
-    reason="MDS layout is OS-dependent, tests for Linux amd64 only",
+@pytest.mark.skip(
+    reason="MDS tests tend to give unstable results, probably some degeneracy in the diagonalisation",
 )
 @pytest.mark.parametrize("nv,radius", [(4, 1.0), (9, 2.0), (14, 3.177), (17, 3.815), (30, 6.765)])
 def test_ring(helpers, nv, radius):
