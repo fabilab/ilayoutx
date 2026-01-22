@@ -7,7 +7,7 @@ import pandas as pd
 import ilayoutx as ilx
 
 # umap currently buggy so we use an internal fix as control
-from ilayoutx.external.umap.fastmath_fixes import smooth_knn_dist
+from ilayoutx.external.umap import smooth_knn_dist
 
 nx = pytest.importorskip("networkx")
 umap = pytest.importorskip("umap")
@@ -187,12 +187,14 @@ def test_fuzzy_symmetrisation(operation, weights):
 
 
 umap_sgd_data = [
-    (4, 4, 0),
+    (4, 4, 0, None),
+    (4, 4, 0, "rust"),
+    (4, 4, 0, "python"),
 ]
 
 
-@pytest.mark.parametrize("n1,n2,n_epochs", umap_sgd_data)
-def test_stochastic_gradient_descent(n1, n2, n_epochs):
+@pytest.mark.parametrize("n1,n2,n_epochs,backend", umap_sgd_data)
+def test_stochastic_gradient_descent(n1, n2, n_epochs, backend):
     from scipy.sparse import coo_matrix
     from umap.umap_ import simplicial_set_embedding
     from ilayoutx.layouts.umap_layouts import (
@@ -288,6 +290,7 @@ def test_stochastic_gradient_descent(n1, n2, n_epochs):
         negative_sampling_rate=nsr,
         normalize_initial_coords=True,
         avoid_neighbors_repulsion=False,
+        backend=backend,
     )
 
     np.testing.assert_allclose(

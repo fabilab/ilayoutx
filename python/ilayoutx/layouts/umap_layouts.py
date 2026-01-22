@@ -7,7 +7,6 @@ from collections.abc import (
 import numpy as np
 from scipy.optimize import (
     curve_fit,
-    root_scalar,
 )
 import pandas as pd
 
@@ -19,6 +18,14 @@ from ilayoutx.utils import (
     _format_initial_coords,
     _format_fixed_nodes,
     _recenter_layout,
+)
+from ilayoutx.external.numba import (
+    has_numba,
+)
+from ilayoutx.external.umap import (
+    _apply_forces_numba_parallel,
+    _apply_forces_numba_serial,
+    _apply_forces_python,
 )
 from ilayoutx._ilayoutx import (
     random as random_rust,
@@ -310,84 +317,6 @@ def _fuzzy_symmetrisation(
     return res
 
 
-def _apply_forces(
-    sym_edge_df: pd.DataFrame,
-    coords: np.ndarray,
-    fixed: np.ndarray,
-    a: float,
-    b: float,
-    n_epoch: int,
-    n_epochs: int,
-    avoid_neighbors_repulsion: bool,
-    negative_sampling_rate: float,
-    next_sampling_epoch: np.ndarray,
-    initial_alpha: float,
-    max_displacement: float = 4.0,
-) -> None:
-    """Apply stochastic forces to a single epoch suring stochastic gradient descent.
-
-    The vague analogue of this function in UMAP-learn is _optimize_layout_euclidean_single_epoch
-    in umap.layouts.py. That function is polluted by densMAP code but is still somewhat readable.
-
-    Parameters:
-        sym_edge_df: DataFrame with edges and weights. Weights should usually be np.float32.
-        coords: Current coordinates of the nodes. Should also usually be np.float32.
-        a: The UMAP a parameter.
-        b: The UMAP b parameter.
-        n_epoch: The current epoch number.
-        n_epochs: The total number of epochs.
-        avoid_neighbors_repulsion: If True, avoid repulsion between neighboring nodes.
-        negative_sampling_rate: How many negative samples to take per positive sample.
-        next_sampling_epoch: Array with the next epoch number when each edge should be sampled.
-        initial_alpha: The initial learning rate.
-        max_displacement: The maximum displacement per epoch (before multiplying by the current
-            learning rate).
-
-    Returns:
-        None. The coords array is modified in place.
-    """
-
-    # The learning rate, which decays linearly over time
-    alpha = 1 - n_epoch / n_epochs
-
-    # Figure out what edges are sampled in this epoch: tenuous edges are sampled rarely if at all
-    idx_edges = next_sampling_epoch <= n_epoch
-
-    # Decide when the *next* sampling epoch will be... these are exponentially
-    # decaying weights, so it can get far enough that it's basically "never"
-    # pretty quickly. More or less because of the definition of sigma, after
-    # the first log2(k) sinks, their weight is likely to be < ~0.3 so they
-    # come up every 3 epochs. After 3 * log2(k) sinks, the edge is only sampled
-    # every 20 epochs or so. Examples:
-    # - For k=10, log2(k) = 3.32, so no edges are sampled less than every 20 epochs.
-    # - For k=100, log2(k) = 6.64, so 80/100 edges are sampled less than every 20
-    #   epochs, in fact 60% is sampled only every 400 epochs!
-    # This ignores the symmetrisation (sinks "hanging on" to other sinks), but is
-    # a useful guide nonetheless about the nonlinearity involved in the log2(k)
-    # choice above. Of course, ignoring most edges most of the time is exactly
-    # what makes UMAP fast :-P
-    next_sampling_epoch[idx_edges] += 1.0 / sym_edge_df["weight"].values[idx_edges]
-
-    # NOTE: unlike in igraph, where we have a binaty swap call for whether
-    # source or sink are feeling the force, we follow the original UMAP code
-    # and move both (towards one another, and away from the evil world). Templated
-    # embedding only moves the source node. The argument in the original UMAP code
-    # is called "move_other" and is True for normal embedding runs.
-
-    # NOTE: UMAP has an explicit for loop for each edge. Here we try to vectorise
-    # this operation as much as possible.
-
-    _apply_forces_rust(
-        sym_edge_df[["source", "target"]].values[idx_edges].astype(np.int64),
-        coords,
-        fixed,
-        (a, b),
-        alpha,
-        max_displacement,
-        negative_sampling_rate,
-    )
-
-
 def _stochastic_gradient_descent(
     sym_edge_df: pd.DataFrame,
     nv: int,
@@ -402,6 +331,7 @@ def _stochastic_gradient_descent(
     max_displacement: float = 4.0,
     fixed: Optional[np.ndarray] = None,
     record: bool = False,
+    backend: Optional[bool] = None,
 ) -> Optional[np.ndarray]:
     """Compute the UMAP layout using stochastic gradient descent.
 
@@ -420,14 +350,41 @@ def _stochastic_gradient_descent(
             only use this for networks with <= 100 nodes (it is computationally expensive to
             check if a random negative sample is a neighbor).
         record: If True, record the coordinates at each epoch.
+        backend: Whether to use numba-parallel, numba, rust, or python for the force application
+            which is the runtime bottleneck of the whole layout. If None, use numba-parallel if
+            abailable, else rust.
     """
+    ne = len(sym_edge_df)
+    next_sampling_epoch = np.zeros(ne)
 
     coords = initial_coords
     if fixed is None:
         fixed = np.zeros(nv, dtype=bool)
 
-    ne = len(sym_edge_df)
-    next_sampling_epoch = np.zeros(ne)
+    if backend is None:
+        if has_numba and not fixed.any():
+            backend = "numba-parallel"
+        else:
+            backend = "rust"
+
+    backend = backend.lower()
+    if backend not in ("numba-parallel", "numba", "rust", "python"):
+        raise ValueError(
+            "backend must be one of 'numba-parallel', 'numba', 'rust', or 'python'.",
+        )
+    if ("numba" in backend) and (not has_numba):
+        raise ImportError(
+            "cannot choose a numba backend since numba is not installed.",
+        )
+
+    if backend == "rust":
+        force_fun = _apply_forces_rust
+    elif backend == "python":
+        force_fun = _apply_forces_python
+    elif backend == "numba":
+        force_fun = _apply_forces_numba_serial
+    else:
+        force_fun = _apply_forces_numba_parallel
 
     # For small graphs, explicit avoidance of repulsion between neighbors
     # is not that costly and more accurate than blind negative sampling.
@@ -447,20 +404,54 @@ def _stochastic_gradient_descent(
         coords_history[0] = coords
 
     for n_epoch in range(n_epochs):
-        _apply_forces(
-            sym_edge_df,
+        # The learning rate, which decays linearly over time
+        alpha = 1 - n_epoch / n_epochs
+
+        # Figure out what edges are sampled in this epoch: tenuous edges are sampled rarely if at all
+        idx_edges = next_sampling_epoch <= n_epoch
+
+        # Decide when the *next* sampling epoch will be... these are exponentially
+        # decaying weights, so it can get far enough that it's basically "never"
+        # pretty quickly. More or less because of the definition of sigma, after
+        # the first log2(k) sinks, their weight is likely to be < ~0.3 so they
+        # come up every 3 epochs. After 3 * log2(k) sinks, the edge is only sampled
+        # every 20 epochs or so. Examples:
+        # - For k=10, log2(k) = 3.32, so no edges are sampled less than every 20 epochs.
+        # - For k=100, log2(k) = 6.64, so 80/100 edges are sampled less than every 20
+        #   epochs, in fact 60% is sampled only every 400 epochs!
+        # This ignores the symmetrisation (sinks "hanging on" to other sinks), but is
+        # a useful guide nonetheless about the nonlinearity involved in the log2(k)
+        # choice above. Of course, ignoring most edges most of the time is exactly
+        # what makes UMAP fast :-P
+        next_sampling_epoch[idx_edges] += 1.0 / sym_edge_df["weight"].values[idx_edges]
+
+        # NOTE: unlike in igraph, where we have a binaty swap call for whether
+        # source or sink are feeling the force, we follow the original UMAP code
+        # and move both (towards one another, and away from the evil world). Templated
+        # embedding only moves the source node. The argument in the original UMAP code
+        # is called "move_other" and is True for normal embedding runs.
+
+        # NOTE: UMAP has an explicit for loop for each edge. Here we try to vectorise
+        # this operation as much as possible.
+
+        random_negative_neighbors = np.random.randint(
+            nv,
+            size=(idx_edges.sum(), negative_sampling_rate),
+            dtype=np.int64,
+        )
+        head_tail = sym_edge_df[["source", "target"]].values[idx_edges].astype(np.int64)
+
+        force_fun(
+            head_tail,
             coords,
             fixed,
+            random_negative_neighbors,
             a,
             b,
-            n_epoch,
-            n_epochs,
-            avoid_neighbors_repulsion,
-            negative_sampling_rate,
-            next_sampling_epoch,
-            initial_alpha,
+            alpha,
             max_displacement,
         )
+
         if record:
             coords_history[n_epoch + 1] = coords
 
@@ -538,6 +529,7 @@ def umap(
     seed: Optional[int] = None,
     inplace: bool = True,
     record: bool = False,
+    backend: Optional[str] = "rust",
 ):
     """Uniform Manifold Approximation and Projection (UMAP) layout.
 
@@ -566,6 +558,8 @@ def umap(
         seed: A random seed to use.
         inplace: If True and the initial coordinates are a numpy array of dtype np.float64,
         that array will be recycled for the output and will be changed in place.
+        backend: Whether to use numba, Rust, or pure Python for the force application which is
+            the runtime bottleneck of the whole layout. If None, use numba if abailable, else Rust.
     Returns:
         The layout of the network.
 
@@ -729,6 +723,7 @@ def umap(
             record=record,
             negative_sampling_rate=negative_sampling_rate,
             fixed=fixed,
+            backend=backend,
         )
         if DEBUG_UMAP:
             t1 = time.time()

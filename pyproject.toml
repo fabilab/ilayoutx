@@ -14,14 +14,6 @@ maintainers = [
 requires-python = ">=3.11"
 readme = "README.md"
 dynamic = ["version"]
-dependencies = [
-  "numpy>=2.0.0",
-  "pandas>=2.0.0",
-  "scipy>=1.11.0",
-  "rectangle-packer>=2.0.0",
-  "circlify>=0.15.0",
-]
-
 license = {text = "MIT"}
 license-files = ["LICEN[CS]E.*"]
 keywords = ["network", "graph", "layout", "routing", "embedding"]
@@ -48,6 +40,23 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
+
+dependencies = [
+  "numpy>=2.0.0",
+  "pandas>=2.0.0",
+  "scipy>=1.11.0",
+  "rectangle-packer>=2.0.0",
+  "circlify>=0.15.0",
+]
+
+
+[project.optional-dependencies]
+fastmath = ["numba>=0.63.1"]
+plot = [
+  "matplotlib>=3.10.0",
+  "iplotx>=1.6.0",
+]
+all = ["ilayoutx[fastmath,plot]"]
 
 [dependency-groups]
 test-noumap = [

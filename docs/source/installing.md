@@ -3,10 +3,22 @@
 pip install ilayoutx
 ```
 
-If you would like to visualise the layouts, also install [iplotx](https://iplotx.readthedocs.io/en/latest/):
+If you want to use [numba](https://numba.pydata.org/) to accelerate and parallelise some layouts (notably UMAP):
 
 ```
-pip install iplotx
+pip install ilayoutx[fastmail]
+```
+
+If you would like to also install [iplotx](https://iplotx.readthedocs.io/en/latest/) for visualisation:
+
+```
+pip install ilayoutx[plot]
+```
+
+If you want to install everything including fastmath and plotting:
+
+```
+pip install ilayoutx[all]
 ```
 
 ## Quick Start

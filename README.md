@@ -9,11 +9,17 @@
 
 Compute fast network layouts. Intended as the upstream companion for [iplotx](https://git.sr.ht/~iosonofabio/iplotx).
 
-**NOTE**: This software is pre-alpha quality. The API is very much in flux, and the documentation is sparse. Use at your own risk.
+**NOTE**: This software is alpha quality. The API is very much in flux, and the documentation is sparse. Use at your own risk.
 
 ## Installation
 ```bash
 pip install ilayoutx
+```
+
+To include support for fast arithmetic, parallelisation, and visualisation:
+
+```bash
+pip install ilayoutx[all]
 ```
 
 ## Resources

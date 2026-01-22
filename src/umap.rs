@@ -1,7 +1,6 @@
 use numpy::ndarray::{ArrayView1, ArrayView2, ArrayViewMut2};
 use numpy::{PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use rand::Rng;
 
 /// Clip both dimensions
 fn clip_displacement(displacement: &mut [f32; 2], clip: f32) {
@@ -78,16 +77,15 @@ fn _apply_forces_single_edge(
     edges: &ArrayView2<'_, i64>,
     coords: &mut ArrayViewMut2<'_, f32>,
     fixed: &ArrayView1<'_, bool>,
+    random_negative_neighbors: &ArrayView2<'_, i64>,
     a: f32,
     b: f32,
     alpha: f32,
     clip: f32,
-    negative_sampling_rate: usize,
     n: usize,
+    n_neg_samples: usize,
     i: usize,
 ) {
-    let mut rng = rand::rng();
-
     let src = *edges.get([i, 0]).unwrap() as usize;
     let dst = *edges.get([i, 1]).unwrap() as usize;
     if (src >= n) | (dst >= n) {
@@ -133,9 +131,9 @@ fn _apply_forces_single_edge(
     //    })
     //    .reduce(|| [0.0, 0.0], |acc, x| [acc[0] + x[0], acc[1] + x[1]]);
 
-    let displacement_neg = (0..negative_sampling_rate)
-        .map(|_| {
-            let dst_neg = rng.random_range(0..n);
+    let displacement_neg = (0..n_neg_samples)
+        .map(|k| {
+            let dst_neg = *random_negative_neighbors.get([i, k]).unwrap() as usize;
             _apply_repulsion_single(src, dst_neg, &coords.view(), a, b, clip) as [f32; 2]
         })
         .fold([0.0, 0.0], |acc, x| [acc[0] + x[0], acc[1] + x[1]]);
@@ -152,6 +150,8 @@ fn _apply_forces_single_edge(
 ///     coords (numpy.ndarray): An array of shape (n, 2) containing the component index of each
 ///     vertex.
 ///     fixed (numpy.ndarray): A boolean array of shape (n, ) indicating which nodes are fixed.
+///     random_negative_neighbors (numpy.ndarray): An array of shape (m, k) containing the indices
+///       of the negative samples for each edge.
 ///     a (float): The 'a' parameter for the UMAP attractive force function.
 ///     b (float): The 'b' parameter for the UMAP attractive force function.
 ///     alpha (float): The learning rate for the attractive forces.
@@ -159,22 +159,24 @@ fn _apply_forces_single_edge(
 /// Returns:
 ///     Nothing
 #[pyfunction]
-#[pyo3(signature = (edges, coords, fixed, ab, alpha, clip=4.0, negative_sampling_rate=5))]
+#[pyo3(signature = (edges, coords, fixed, random_negative_neighbors, a, b, alpha, clip=4.0))]
 pub fn _umap_apply_forces(
     edges: PyReadonlyArray2<'_, i64>,
     coords: &Bound<'_, PyArray2<f32>>,
     fixed: PyReadonlyArray1<'_, bool>,
-    ab: (f32, f32),
+    random_negative_neighbors: PyReadonlyArray2<'_, i64>,
+    a: f32,
+    b: f32,
     alpha: f32,
     clip: f32,
-    negative_sampling_rate: usize,
 ) {
-    let a = ab.0;
-    let b = ab.1;
     let edges = edges.as_array();
-    let fixed = fixed.as_array();
     let m = edges.shape()[0];
     let m2 = edges.shape()[1];
+
+    let fixed = fixed.as_array();
+    let random_negative_neighbors = random_negative_neighbors.as_array();
+    let n_neg_samples = random_negative_neighbors.shape()[1];
 
     let mut coords = coords.readwrite();
     let mut coords = coords.as_array_mut();
@@ -190,12 +192,13 @@ pub fn _umap_apply_forces(
             &edges,
             &mut coords,
             &fixed,
+            &random_negative_neighbors,
             a,
             b,
             alpha,
             clip,
-            negative_sampling_rate,
             n,
+            n_neg_samples,
             i,
         );
     });

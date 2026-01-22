@@ -1,6 +1,7 @@
 """This module provides safe fallbacks for UMAP's riskily optimised functions.
 
 No ill intent against UMAP's developers. Working on top of LLVM -> llvmlite -> numba has got to be a nightmare.
+Here we shim numba against ill dependencies with a gracious, if slow, fallback.
 """
 
 # Some of the code below is originally from UMAP-learn, see LICENSE below:
@@ -36,36 +37,24 @@ No ill intent against UMAP's developers. Working on top of LLVM -> llvmlite -> n
 
 import numpy as np
 
-try:
-    import numba
-except ImportError:
-    numba = None
+# NOTE: We are shimming numba because it's an optional dependency
+from ilayoutx.external.numba import maybe_numba as numba
+
 
 SMOOTH_K_TOLERANCE = 1e-5
 MIN_K_DIST_SCALE = 1e-3
 NPY_INFINITY = np.inf
 
 
-if numba is not None:
-    # Verbatim except for the numba fastmath flag:
-    # https://github.com/lmcinnes/umap/issues/1216
-    _decorator = numba.njit(
-        locals={
-            "psum": numba.types.float32,
-            "lo": numba.types.float32,
-            "mid": numba.types.float32,
-            "hi": numba.types.float32,
-        },
-        fastmath={"reassoc", "nsz", "nnan"},
-    )
-else:
-
-    def _decorator(func):
-        """Dummy decorator if numba is not available."""
-        return func
-
-
-@_decorator
+@numba.njit(
+    locals={
+        "psum": numba.types.float32,
+        "lo": numba.types.float32,
+        "mid": numba.types.float32,
+        "hi": numba.types.float32,
+    },
+    fastmath={"reassoc", "nsz", "nnan"},
+)
 def smooth_knn_dist(distances, k, n_iter=64, local_connectivity=1.0, bandwidth=1.0):
     """Compute a continuous version of the distance to the kth nearest
     neighbor. That is, this is similar to knn-distance but allows continuous
@@ -165,3 +154,150 @@ def smooth_knn_dist(distances, k, n_iter=64, local_connectivity=1.0, bandwidth=1
                 result[i] = MIN_K_DIST_SCALE * mean_distances
 
     return result, rho
+
+
+@numba.njit()
+def clip(val):
+    """Standard clamping of a value into a fixed range (in this case -4.0 to
+    4.0)
+
+    Parameters
+    ----------
+    val: float
+        The value to be clamped.
+
+    Returns
+    -------
+    The clamped value, now fixed to be in the range -4.0 to 4.0.
+    """
+    if val > 4.0:
+        return 4.0
+    elif val < -4.0:
+        return -4.0
+    else:
+        return val
+
+
+@numba.njit(
+    "f4(f4[::1],f4[::1])",
+    fastmath=True,
+    cache=True,
+    locals={
+        "result": numba.types.float32,
+        "diff": numba.types.float32,
+        "dim": numba.types.intp,
+        "i": numba.types.intp,
+    },
+)
+def rdist(x, y):
+    """Reduced Euclidean distance.
+
+    Parameters
+    ----------
+    x: array of shape (embedding_dim,)
+    y: array of shape (embedding_dim,)
+
+    Returns
+    -------
+    The squared euclidean distance between x and y
+    """
+    result = 0.0
+    dim = x.shape[0]
+    for i in range(dim):
+        diff = x[i] - y[i]
+        result += diff * diff
+
+    return result
+
+
+@numba.njit("i4(i8[:])")
+def tau_rand_int(state):
+    """A fast (pseudo)-random number generator.
+
+    Parameters
+    ----------
+    state: array of int64, shape (3,)
+        The internal state of the rng
+
+    Returns
+    -------
+    A (pseudo)-random int32 value
+    """
+    state[0] = (((state[0] & 4294967294) << 12) & 0xFFFFFFFF) ^ (
+        (((state[0] << 13) & 0xFFFFFFFF) ^ state[0]) >> 19
+    )
+    state[1] = (((state[1] & 4294967288) << 4) & 0xFFFFFFFF) ^ (
+        (((state[1] << 2) & 0xFFFFFFFF) ^ state[1]) >> 25
+    )
+    state[2] = (((state[2] & 4294967280) << 17) & 0xFFFFFFFF) ^ (
+        (((state[2] << 3) & 0xFFFFFFFF) ^ state[2]) >> 11
+    )
+
+    return state[0] ^ state[1] ^ state[2]
+
+
+# def _optimize_layout_euclidean_single_epoch(
+def _apply_forces_python(
+    head_tail,
+    embedding,
+    fixed,
+    random_negative_neighbors,
+    a,
+    b,
+    alpha,
+    max_displacement,
+):
+    gamma = 1.0
+    n_neg_samples = random_negative_neighbors.shape[1]
+
+    for i in numba.prange(head_tail.shape[0]):
+        j = head_tail[i, 0]
+        k = head_tail[i, 1]
+
+        if fixed[j]:
+            continue
+
+        current = embedding[j]
+        other = embedding[k]
+
+        dist_squared = rdist(current, other)
+
+        if dist_squared > 0.0:
+            grad_coeff = -2.0 * a * b * pow(dist_squared, b - 1.0)
+            grad_coeff /= a * pow(dist_squared, b) + 1.0
+        else:
+            grad_coeff = 00
+
+        for d in range(2):
+            grad_d = clip(grad_coeff * (current[d] - other[d]))
+
+            current[d] += grad_d * alpha
+            if not fixed[k]:
+                other[d] += -grad_d * alpha
+
+        for p in range(n_neg_samples):
+            k = random_negative_neighbors[i, p]
+            if j == k:
+                continue
+
+            other = embedding[k]
+            dist_squared = rdist(current, other)
+
+            if dist_squared > 0.0:
+                grad_coeff = 2.0 * gamma * b
+                grad_coeff /= (0.001 + dist_squared) * (a * pow(dist_squared, b) + 1)
+            else:
+                grad_coeff = 0.0
+
+            for d in range(2):
+                if grad_coeff > 0.0:
+                    grad_d = clip(grad_coeff * (current[d] - other[d]))
+                else:
+                    grad_d = 0
+                current[d] += grad_d * alpha
+
+
+# NOTE: numba.jit has two actual APIs... ! One in which the function comes first, one a
+# standard decorator with arguments. We only use syntax 2 here
+_apply_forces_numba_parallel = numba.njit(fastmath=True, parallel=True)(_apply_forces_python)
+_apply_forces_numba_serial = numba.njit(fastmath=True, parallel=False)(_apply_forces_python)
