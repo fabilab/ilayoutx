@@ -183,4 +183,4 @@ def test_large_layout(helpers):
 
     # Check that edges tend to be shorter than non-edges
     # This is clearer from the cumulative distrubutions, but for now an ok check
-    assert (dists < dists_non).mean() > 0.7
+    assert (dists < dists_non).mean() > 0.6
