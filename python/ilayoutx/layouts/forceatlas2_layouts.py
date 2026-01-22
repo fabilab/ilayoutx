@@ -11,7 +11,10 @@ from ..ingest import (
     network_library,
     data_providers,
 )
-from ..utils import _format_initial_coords
+from ..utils import (
+    _format_initial_coords,
+    _recenter_layout,
+)
 from ..external.networkx.forceatlas2 import (
     forceatlas2_layout as fa2_networkx,
 )
@@ -28,7 +31,7 @@ def forceatlas2(
         | np.ndarray
         | pd.DataFrame
     ] = None,
-    center: Optional[tuple[float, float]] = (0, 0),
+    center: Optional[tuple[float, float]] = None,
     jitter_tolerance: float = 1.0,
     scaling_ratio: float = 2.0,
     gravity: float = 1.0,
@@ -47,6 +50,8 @@ def forceatlas2(
     Parameters:
         network: The network to layout.
         initial_coords: Initial coordinates for the nodes.
+        center: If not None, recenter the layout around this point. If None, follow networkx's
+            convention and center it around its mean position.
         jitter_tolerance: Controls the tolerance for adjusting the speed of layout generation.
         scaling_ratio: Determines the scaling of attraction and repulsion forces.
         gravity: Determines the amount of attraction on nodes to the center. Prevents islands
@@ -109,7 +114,7 @@ def forceatlas2(
         coords = initial_coords
 
     if center is not None:
-        coords += np.array(center, dtype=np.float64)
+        _recenter_layout(coords, center)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout

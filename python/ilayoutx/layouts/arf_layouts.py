@@ -11,7 +11,10 @@ from ..ingest import (
     network_library,
     data_providers,
 )
-from ..utils import _format_initial_coords
+from ..utils import (
+    _format_initial_coords,
+    _recenter_layout,
+)
 from ..external.networkx.arf import (
     arf_networkx,
 )
@@ -94,7 +97,7 @@ def arf(
         coords = initial_coords
 
     if center is not None:
-        coords += np.array(center, dtype=np.float64) - coords.mean(axis=0)
+        _recenter_layout(coords, center)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout
