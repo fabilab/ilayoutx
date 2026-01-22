@@ -12,22 +12,33 @@ except ImportError:
     has_numba = False
 
 
-if maybe_numba is None:
-    # Fallback no-op decorator
-    def _dumb_decorator_with_args(*args, **kwargs):
-        def _dumb_decorator(func):
-            return func
+# Fallback no-op decorator
+def _dumb_decorator_with_args(*args, **kwargs):
+    def _dumb_decorator(func):
+        return func
 
-        return _dumb_decorator
+    return _dumb_decorator
 
-    maybe_numba = object()
-    maybe_numba.njit = _dumb_decorator_with_args
-    maybe_numba.types = object()
-    types = ["float32", "float64", "int32", "int64", "uint8", "uint16"]
-    for t in types:
-        maybe_numba.types.__setattr__(t, getattr(np, t))
 
-    maybe_numba.prange = range
+class NumbaTypes:
+    pass
+
+
+for t in ["float32", "float64", "int32", "int64", "uint8", "uint16"]:
+    setattr(NumbaTypes, t, getattr(np, t))
+
+
+class NumbaMock:
+    pass
+
+
+NumbaMock.njit = _dumb_decorator_with_args
+NumbaMock.prange = range
+NumbaMock.types = NumbaTypes
+
+
+if not has_numba:
+    maybe_numba = NumbaMock
 
 
 __all__ = ("maybe_numba", "has_numba")
