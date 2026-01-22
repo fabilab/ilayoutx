@@ -206,6 +206,7 @@ def graph_embedder(
             fallback=lambda: random_rust(nv, seed=seed),
             inplace=inplace,
         )
+        initial_coords.setflags(write=True)
 
         # TODO: allow weights
         adjacency = provider.adjacency_matrix()

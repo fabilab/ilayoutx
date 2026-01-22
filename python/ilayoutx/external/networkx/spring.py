@@ -58,6 +58,7 @@ def _fruchterman_reingold(
 
     NOTE: this function writes the output in place in the pos variable.
     """
+    pos.setflags(write=True)
     nnodes = len(A)
 
     # the initial "temperature"  is about .1 of domain area (=1x1)

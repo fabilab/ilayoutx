@@ -95,6 +95,8 @@ def spring(
         index=index,
         fallback=lambda: random_rust(nv, seed=seed),
     )
+    initial_coords.setflags(write=True)
+
     if ((fixed is not None) and fixed.all()) or (nv == 1):
         coords = initial_coords
     else:

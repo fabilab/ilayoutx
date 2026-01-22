@@ -26,6 +26,7 @@ class NumbaTypes:
 
 for t in ["float32", "float64", "int32", "int64", "uint8", "uint16"]:
     setattr(NumbaTypes, t, getattr(np, t))
+NumbaTypes.intp = int
 
 
 class NumbaMock:

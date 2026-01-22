@@ -79,6 +79,7 @@ def arf(
             index=index,
             fallback=lambda: random_rust(nv, seed=seed),
         )
+        initial_coords.setflags(write=True)
 
         edges = provider.edges()
 

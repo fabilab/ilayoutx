@@ -90,6 +90,7 @@ def forceatlas2(
             index=index,
             fallback=lambda: random_rust(nv, seed=seed),
         )
+        initial_coords.setflags(write=True)
 
         # TODO: allow weights
         adjacency = provider.adjacency_matrix()
