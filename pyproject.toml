@@ -72,6 +72,10 @@ test = [
   {include-group = "test-noumap"},
   "umap-learn>=0.5.11",
 ]
+profile = [
+  {include-group = "test"},
+  "tprof>=1.0.0",
+]
 docs = [
   "sphinx",
   "myst-parser>=4.0.1",

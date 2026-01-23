@@ -14,7 +14,7 @@ from ..ingest import (
 )
 from ..utils import _format_initial_coords
 from ..external.networkx.spring import (
-    _fruchterman_reingold as fruchterman_reingold_networkx,
+    _spring,
 )
 from ilayoutx._ilayoutx import (
     random as random_rust,
@@ -73,9 +73,13 @@ def spring(
     index = provider.vertices()
     nv = provider.number_of_vertices()
 
-    if fixed is not None:
+    if fixed is None:
+        fixed = np.zeros(nv, dtype=bool)
+        fixed_miss = True
+    else:
         if len(fixed) == 0:
-            fixed = None
+            fixed = np.zeros(nv, dtype=bool)
+            fixed_miss = True
         else:
             fixed_bool = pd.Series(np.zeros(nv, dtype=bool), index=index)
             if isinstance(fixed, dict):
@@ -86,6 +90,7 @@ def spring(
                 fixed_bool[fixed] = True
             fixed = fixed_bool.values
             del fixed_bool
+            fixed_miss = False
 
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
@@ -97,7 +102,7 @@ def spring(
     )
     initial_coords.setflags(write=True)
 
-    if ((fixed is not None) and fixed.all()) or (nv == 1):
+    if fixed.all() or (nv == 1):
         coords = initial_coords
     else:
         # TODO: allow weights
@@ -106,21 +111,20 @@ def spring(
         if optimal_distance is None:
             optimal_distance = np.sqrt(1.0 / nv)
 
-        # NOTE: the output is inserted in place into initial_coords
-        fruchterman_reingold_networkx(
+        coords = initial_coords
+        _spring(
             A=adjacency,
             k=optimal_distance,
-            pos=initial_coords,
+            pos=coords,
+            fixed=fixed,
             threshold=etol,
             max_iter=max_iter,
             seed=seed,
             exponent_attraction=exponent_attraction,
             exponent_repulsion=exponent_repulsion,
-            fixed=fixed,
         )
-        coords = initial_coords
 
-    if fixed is None:
+    if fixed_miss:
         if center is not None:
             coords += np.array(center, dtype=np.float64) - coords.mean(axis=0)
 

@@ -43,22 +43,28 @@
 import numpy as np
 
 
-def _fruchterman_reingold(
+# NOTE: The commented numba lines below are necessary to get
+# numba to compile this function properly. Early testing indicated that
+# calling numba does not speed things up *as written*, which makes
+# sense given that everything is already vectorized with numpy. Future
+# shortcuts might be attempted to speed this up with numba.
+
+
+def _spring(
     A,
-    k=None,
-    pos=None,
-    fixed=None,
-    max_iter=50,
-    threshold=1e-4,
-    seed=None,
-    exponent_attraction: float = 1.0,
-    exponent_repulsion: float = -2.0,
+    k,
+    pos,
+    fixed,
+    max_iter,
+    threshold,
+    seed,
+    exponent_attraction,
+    exponent_repulsion,
 ) -> None:
     """Fruchterman-Reingold force-directed layout algorithm.
 
     NOTE: this function writes the output in place in the pos variable.
     """
-    pos.setflags(write=True)
     nnodes = len(A)
 
     # the initial "temperature"  is about .1 of domain area (=1x1)
@@ -75,8 +81,11 @@ def _fruchterman_reingold(
     # the inscrutable (but fast) version - this is still O(V^2)
     for iteration in range(max_iter):
         # pairwise distance
-        delta = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
+        delta = pos[:, None, :] - pos[None, :, :]
+
         distance = np.linalg.norm(delta, axis=-1)
+        # distance_numba = np.sqrt((delta * delta).sum(axis=-1))
+        # assert np.allclose(distance, distance_numba)
 
         # enforce minimum distance of 0.01
         np.clip(distance, 0.01, None, out=distance)
@@ -89,15 +98,24 @@ def _fruchterman_reingold(
 
         # displacement as a result
         displacement = np.einsum("ijk,ij->ik", delta, force)
+        # displacement_numba = (delta * force[:, :, None]).sum(axis=1)
+        # assert np.allclose(displacement, displacement_numba)
 
         # update positions
+        # NOTE: rewritten for numba
         length = np.linalg.norm(displacement, axis=-1)
-        np.clip(length, a_min=0.01, a_max=None, out=length)
-        delta_pos = np.einsum("ij,i->ij", displacement, t / length)
+        # length_numba = np.sqrt((displacement * displacement).sum(axis=-1))
+        # assert np.allclose(length, length_numba)
 
-        if fixed is not None:
-            # don't change positions of fixed nodes
-            delta_pos[fixed] = 0.0
+        np.clip(length, a_min=0.01, a_max=None, out=length)
+
+        # NOTE: rewritten for numba
+        delta_pos = np.einsum("ij,i->ij", displacement, t / length)
+        # delta_pos_numba = displacement * (t / length)[:, None]
+        # assert np.allclose(delta_pos, delta_pos_numba)
+
+        # don't change positions of fixed nodes
+        delta_pos[fixed] = 0.0
 
         pos += delta_pos
 
@@ -105,5 +123,6 @@ def _fruchterman_reingold(
         t -= dt
 
         # check for convergence
-        if (np.linalg.norm(delta_pos) / nnodes) < threshold:
+        total_change = np.linalg.norm(delta_pos)
+        if (total_change / nnodes) < threshold:
             break
