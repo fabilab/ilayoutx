@@ -128,3 +128,50 @@ def test_fixed(helpers, max_iter, fixed):
         pos_nx.values,
         atol=1e-2 if max_iter >= 20 else 1e-6,
     )
+
+
+@pytest.mark.parametrize("max_iter", [0])
+def test_energy(helpers, max_iter):
+    """Test basic spring layout against NetworkX's internal implementation.
+
+    NOTE: Numerical precision and random seeding (nx uses an old numpy rng) can cause
+    small differences. We try to deal with that as well as possible here.
+    """
+
+    g1 = nx.complete_graph(200)
+    g = nx.disjoint_union(nx.disjoint_union(g1, g1), g1)
+
+    initial_coords = 10 * np.random.rand(g.number_of_nodes(), 2)
+    initial_coords_dict = {i: tuple(initial_coords[i]) for i in range(g.number_of_nodes())}
+
+    pos_ilx = ilx.layouts.spring(
+        g,
+        initial_coords=initial_coords_dict,
+        max_iter=max_iter,
+        method="energy",
+        optimal_distance=1.0,
+        scale=None,
+        center=None,
+    )
+
+    # NOTE: networkx energy spring has a bug for max_iter=0.
+    if max_iter == 0:
+        pos_exp = pd.DataFrame(initial_coords, index=range(g.number_of_nodes()), columns=["x", "y"])
+    else:
+        pos_exp = nx.spring_layout(
+            g,
+            pos=initial_coords_dict,
+            iterations=max_iter,
+            method="energy",
+            k=1.0,
+            scale=None,
+        )
+        pos_exp = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
+        pos_exp.columns = pos_ilx.columns
+
+    # NOTE: For large max_iter, numerical precision can cause small differences
+    np.testing.assert_allclose(
+        pos_ilx.values,
+        pos_exp.values,
+        atol=1e-2 if max_iter >= 20 else 1e-6,
+    )

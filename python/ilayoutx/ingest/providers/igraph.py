@@ -56,12 +56,17 @@ class IGraphDataProvider(NetworkDataProvider):
         """Get a list of edges."""
         return self.network.get_edgelist()
 
-    def adjacency_matrix(self, weights=None) -> np.ndarray:
+    def adjacency_matrix(self, weights=None, sparse=False) -> np.ndarray:
         """Get the adjacency matrix as a numpy array."""
         matrix = np.asarray(self.network.get_adjacency())
         if weights is not None:
             edge_indices = np.array(self.edges())
             matrix[edge_indices[:, 0], edge_indices[:, 1]] = weights
+
+        if sparse:
+            from scipy.sparse import csr_matrix
+
+            return csr_matrix(matrix)
 
         return matrix
 

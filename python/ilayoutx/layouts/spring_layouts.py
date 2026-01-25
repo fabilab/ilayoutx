@@ -15,6 +15,7 @@ from ..ingest import (
 from ..utils import _format_initial_coords
 from ..external.networkx.spring import (
     _spring,
+    _spring_energy,
 )
 from ilayoutx._ilayoutx import (
     random as random_rust,
@@ -36,10 +37,10 @@ def spring(
     gravity: float = 1.0,
     exponent_attraction: float = 1.0,
     exponent_repulsion: float = -2.0,
-    method="force",
     etol: float = 1e-4,
     max_iter: int = 50,
     seed: Optional[int] = None,
+    method=None,
 ):
     """Spring layout (Fruchterman-Reingold).
 
@@ -59,6 +60,9 @@ def spring(
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         max_iter: Max iterations before termination of the algorithm.
         seed: A random seed to use.
+        method: The method to use. "force" and "energy" are supported. If None, use "force" for
+            networks with less than 500 nodes, otherwise "energy". This convention follows
+            networkx's implementation.
     Returns:
         The layout of the network.
 
@@ -72,6 +76,12 @@ def spring(
 
     index = provider.vertices()
     nv = provider.number_of_vertices()
+
+    if method is None:
+        method = "force" if nv < 500 else "energy"
+
+    if method not in ("force", "energy"):
+        raise ValueError(f"Unknown method '{method}' for spring layout.")
 
     if fixed is None:
         fixed = np.zeros(nv, dtype=bool)
@@ -105,24 +115,40 @@ def spring(
     if fixed.all() or (nv == 1):
         coords = initial_coords
     else:
-        # TODO: allow weights
-        adjacency = provider.adjacency_matrix()
-
         if optimal_distance is None:
             optimal_distance = np.sqrt(1.0 / nv)
 
         coords = initial_coords
-        _spring(
-            A=adjacency,
-            k=optimal_distance,
-            pos=coords,
-            fixed=fixed,
-            threshold=etol,
-            max_iter=max_iter,
-            seed=seed,
-            exponent_attraction=exponent_attraction,
-            exponent_repulsion=exponent_repulsion,
-        )
+        if method == "force":
+            # TODO: allow weights
+            adjacency = provider.adjacency_matrix()
+
+            _spring(
+                A=adjacency,
+                k=optimal_distance,
+                pos=coords,
+                fixed=fixed,
+                threshold=etol,
+                max_iter=max_iter,
+                seed=seed,
+                exponent_attraction=exponent_attraction,
+                exponent_repulsion=exponent_repulsion,
+            )
+        elif method == "energy":
+            adjacency = provider.adjacency_matrix(sparse=True)
+
+            coords = _spring_energy(
+                A=adjacency,
+                k=optimal_distance,
+                pos=coords,
+                fixed=fixed,
+                threshold=etol,
+                max_iter=max_iter,
+                seed=seed,
+                exponent_attraction=exponent_attraction,
+                exponent_repulsion=exponent_repulsion,
+                gravity=gravity,
+            )
 
     if fixed_miss:
         if center is not None:
