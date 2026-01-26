@@ -155,6 +155,7 @@ def test_energy(helpers, max_iter):
     )
 
     # NOTE: networkx energy spring has a bug for max_iter=0.
+    # https://github.com/networkx/networkx/pull/8486
     if max_iter == 0:
         pos_exp = pd.DataFrame(initial_coords, index=range(g.number_of_nodes()), columns=["x", "y"])
     else:
@@ -166,7 +167,7 @@ def test_energy(helpers, max_iter):
             k=1.0,
             scale=None,
         )
-        pos_exp = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
+        pos_exp = pd.DataFrame({key: val for key, val in pos_exp.items()}).T
         pos_exp.columns = pos_ilx.columns
 
     # NOTE: For large max_iter, numerical precision can cause small differences

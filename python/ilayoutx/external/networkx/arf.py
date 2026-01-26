@@ -113,7 +113,7 @@ def arf_networkx(
     # looping variables
     error = etol + 1
     n_iter = 0
-    while error > etol:
+    while error > etol and n_iter < max_iter:
         # A is the symmetric matrix of distances between all node pairs
         # NOTE: This is O(N^2) in memory and time. Moreover, we are not
         # recycling the memory properly, so it's allocated each iteration.
@@ -132,6 +132,4 @@ def arf_networkx(
         pos += delta_pos * dt
 
         error = np.linalg.norm(delta_pos, axis=-1).sum()
-        if n_iter > max_iter:
-            break
         n_iter += 1

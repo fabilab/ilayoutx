@@ -51,22 +51,34 @@ def test_basic(helpers, max_iter):
 
     g = nx.path_graph(4)
 
-    initial_coords = {
+    initial_coords_dict = {
         0: (0.0, 0.0),
         1: (1.0, 0.0),
         2: (1.0, 1.0),
         3: (2.0, 1.0),
     }
+    initial_coords = (
+        pd.DataFrame({key: val for key, val in initial_coords_dict.items()})
+        .T.loc[np.arange(g.number_of_nodes())]
+        .values
+    )
 
     # NOTE:This scale thing is kind of awkward, perhaps broken in networkx
     pos_ilx = ilx.layouts.arf(g, initial_coords=initial_coords, max_iter=max_iter)
-    pos_nx = nx.arf_layout(g, pos=initial_coords, max_iter=max_iter)
-    pos_nx = pd.DataFrame({key: val for key, val in pos_nx.items()}).T
-    pos_nx.columns = pos_ilx.columns
+
+    # NOTE: networkx energy spring has a bug for max_iter=0.
+    # https://github.com/networkx/networkx/pull/8486
+    if max_iter == 0:
+        pos_exp = pd.DataFrame(initial_coords, index=range(g.number_of_nodes()), columns=["x", "y"])
+    else:
+        # NOTE: The -2 is the same bug as above
+        pos_exp = nx.arf_layout(g, pos=initial_coords_dict, max_iter=max_iter - 2)
+        pos_exp = pd.DataFrame({key: val for key, val in pos_exp.items()}).T
+        pos_exp.columns = pos_ilx.columns
 
     # NOTE: For large max_iter, numerical precision can cause small differences
     np.testing.assert_allclose(
         pos_ilx.values,
-        pos_nx.values,
+        pos_exp.values,
         atol=1e-14,
     )
