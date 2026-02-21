@@ -52,7 +52,7 @@ def geometric(
     nodes_ser = pd.Series(np.arange(nv), index=index)
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"], dtype=float)
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
     else:

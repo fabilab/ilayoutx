@@ -37,7 +37,7 @@ def line(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     coords = line_rust(nv, np.degrees(theta))
 
@@ -68,7 +68,7 @@ def circle(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.zeros((1, 2), dtype=np.float64)
@@ -133,7 +133,7 @@ def random(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     coords = random_rust(nv, xmin, xmax, ymin, ymax, seed)
     if sizes is not None:
@@ -185,7 +185,7 @@ def shell(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"], dtype=float)
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     nnodes_by_shell = [len(x) for x in nlist]
     coords = shell_rust(nnodes_by_shell, radius, center, np.degrees(theta))
@@ -228,7 +228,7 @@ def spiral(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"], dtype=float)
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if nv == 1:
         coords = np.array([[center[0], center[1]]], dtype=np.float64)
