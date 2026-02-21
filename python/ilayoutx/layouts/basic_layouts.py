@@ -23,6 +23,7 @@ from ..ingest import data_providers, network_library
 def line(
     network,
     theta: float = 0.0,
+    center: tuple[float, float] = (0.0, 0.0),
 ):
     """Line layout.
 
@@ -40,6 +41,8 @@ def line(
         return pd.DataFrame(columns=["x", "y"])
 
     coords = line_rust(nv, np.degrees(theta))
+    
+    coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
     return layout
