@@ -60,7 +60,7 @@ Either way, the result is the same:
 4  0.309017 -0.951057
 ```
 
-If you want to visualise the layouted graph, you can use [iplotx](https://iplotx.readthedocs.io/en/latest/):
+If you want to visualise the layouted graph you can use [iplotx](https://iplotx.readthedocs.io/en/latest/):
 
 ```
 import iplotx as ipx
