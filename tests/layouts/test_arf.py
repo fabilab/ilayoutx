@@ -1,5 +1,6 @@
 """Test Attractive-repulsive forces layouts."""
 
+import pathlib
 import pytest
 import numpy as np
 import pandas as pd
@@ -52,10 +53,10 @@ def test_basic(helpers, max_iter):
     g = nx.path_graph(4)
 
     initial_coords_dict = {
-        0: (0.0, 0.0),
-        1: (1.0, 0.0),
-        2: (1.0, 1.0),
-        3: (2.0, 1.0),
+        0: np.array([0.0, 0.0]),
+        1: np.array([1.0, 0.0]),
+        2: np.array([1.0, 1.0]),
+        3: np.array([2.0, 1.0]),
     }
     initial_coords = (
         pd.DataFrame({key: val for key, val in initial_coords_dict.items()})
@@ -66,15 +67,32 @@ def test_basic(helpers, max_iter):
     # NOTE:This scale thing is kind of awkward, perhaps broken in networkx
     pos_ilx = ilx.layouts.arf(g, initial_coords=initial_coords, max_iter=max_iter)
 
-    # NOTE: networkx energy spring has a bug for max_iter=0.
-    # https://github.com/networkx/networkx/pull/8486
-    if max_iter == 0:
-        pos_exp = pd.DataFrame(initial_coords, index=range(g.number_of_nodes()), columns=["x", "y"])
-    else:
-        # NOTE: The -2 is the same bug as above
-        pos_exp = nx.arf_layout(g, pos=initial_coords_dict, max_iter=max_iter - 2)
-        pos_exp = pd.DataFrame({key: val for key, val in pos_exp.items()}).T
-        pos_exp.columns = pos_ilx.columns
+    # Use cache to avoid surprise changes from networkx
+    exp_result_fn = (
+        pathlib.Path(__file__).parent
+        / "expected"
+        / "test_arf"
+        / f"test_basic_max_iter_{max_iter}.csv"
+    )
+
+    def exp_compute_fun():
+        # NOTE: networkx energy spring has a bug for max_iter=0.
+        # https://github.com/networkx/networkx/pull/8486
+        if max_iter == 0:
+            pos_exp = pd.DataFrame(
+                initial_coords, index=range(g.number_of_nodes()), columns=["x", "y"]
+            )
+        else:
+            # NOTE: The -2 is the same bug as above
+            pos_exp = nx.arf_layout(g, pos=initial_coords_dict, max_iter=max_iter - 2)
+            pos_exp = pd.DataFrame({key: val for key, val in pos_exp.items()}).T
+            pos_exp.columns = pos_ilx.columns
+        return pos_exp
+
+    pos_exp = helpers.expected_layout_with_cache(
+        exp_result_fn,
+        exp_compute_fun,
+    )
 
     # NOTE: For large max_iter, numerical precision can cause small differences
     np.testing.assert_allclose(

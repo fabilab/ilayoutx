@@ -47,8 +47,6 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          # This creates SO MANY headaches
           sccache: false
           manylinux: auto
       - name: Upload wheels
@@ -56,6 +54,7 @@ jobs:
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
+          overwrite: true
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
         shell: bash
@@ -65,7 +64,7 @@ jobs:
           source .venv/bin/activate
           pip install -U pip
           pip install --group test-noumap
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
           echo "Run pytest"
           pytest
       - name: pytest
@@ -83,7 +82,7 @@ jobs:
             pip3 install networkx igraph pytest
           run: |
             set -e
-            pip3 install ilayoutx --find-links dist --force-reinstall
+            pip3 install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
             echo "Run pytest"
             pytest
 
@@ -110,7 +109,6 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           sccache: false
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -118,6 +116,7 @@ jobs:
         with:
           name: wheels-musllinux-${{ matrix.platform.target }}
           path: dist
+          overwrite: true
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
         uses: addnab/docker-run-action@v3
@@ -130,8 +129,7 @@ jobs:
             python3 -m virtualenv .venv
             source .venv/bin/activate
             pip install -U pip
-            pip install ilayoutx --find-links dist
-            #pip install ilayoutx --no-index --find-links dist --force-reinstall
+            pip install dist/ilayoutx*cp312*.whl --find-links dist --force-reinstall
             pip install --group test-noumap
             echo "Run pytest"
             pytest
@@ -150,7 +148,7 @@ jobs:
             source .venv/bin/activate
             pip install -U pip
             pip install --group test-noumap
-            pip install ilayoutx --find-links dist --force-reinstall
+            pip install dist/ilayoutx*cp312*.whl --find-links dist --force-reinstall
             echo "Run pytest"
             pytest
 
@@ -174,13 +172,13 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           sccache: false
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
           path: dist
+          overwrite: true
       - name: pytest
         if: ${{ !startsWith(matrix.platform.target, 'aarch64') }}
         shell: bash
@@ -190,7 +188,7 @@ jobs:
           source .venv/Scripts/activate
           python.exe -m pip install --upgrade pip
           pip install --group test-noumap
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
           echo "Run pytest"
           pytest
 
@@ -213,13 +211,13 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          #sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           sccache: false
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
+          overwrite: true
       - name: pytest
         run: |
           set -e
@@ -227,7 +225,7 @@ jobs:
           source .venv/bin/activate
           pip install -U pip
           pip install --group test-noumap
-          pip install ilayoutx --find-links dist --force-reinstall
+          pip install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
           echo "Run pytest"
           pytest
 
@@ -240,11 +238,13 @@ jobs:
         with:
           command: sdist
           args: --out dist
+          sccache: false
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
           path: dist
+          overwrite: true
 
   release:
     name: Release
@@ -273,3 +273,4 @@ jobs:
         with:
           command: upload
           args: --non-interactive --skip-existing wheels-*/*
+          sccache: false

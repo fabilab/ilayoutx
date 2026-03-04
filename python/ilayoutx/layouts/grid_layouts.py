@@ -31,7 +31,7 @@ def grid(
     nv = provider.number_of_vertices()
 
     if nv == 0:
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     if shape == "triangle":
         coords = grid_triangle_rust(nv, width, equal_rows=not trim_even_rows)
