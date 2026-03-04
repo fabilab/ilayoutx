@@ -53,10 +53,10 @@ def test_basic(helpers, max_iter):
     g = nx.path_graph(4)
 
     initial_coords_dict = {
-        0: (0.0, 0.0),
-        1: (1.0, 0.0),
-        2: (1.0, 1.0),
-        3: (2.0, 1.0),
+        0: np.array([0.0, 0.0]),
+        1: np.array([1.0, 0.0]),
+        2: np.array([1.0, 1.0]),
+        3: np.array([2.0, 1.0]),
     }
     initial_coords = (
         pd.DataFrame({key: val for key, val in initial_coords_dict.items()})
