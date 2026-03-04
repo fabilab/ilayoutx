@@ -1,22 +1,79 @@
 # Contributing
+## Suggestions
+We keep track of general suggestions on sourcehut, please open a ticket there!
+## Code / documentation / tests
+ilayoutx is mainly developed on sourcehut, but we accept contributions from GitHub as well.
 
-Open an [issue on SourceHut](https://todo.sr.ht/~iosonofabio/ilayoutx) to request features, report bugs, or show intention in contributing.
+::::{tab-set}
 
-## Fork from Github
-We use Github for repository hosting and pull requests. Log into Github and [create a fork of ilayoutx](https://github.com/fabilab/ilayoutx). You can now clone this fork locally!
+:::{tab-item} SourceHut
+Open a [ticket on SourceHut](https://todo.sr.ht/~iosonofabio/ilayoutx) to request features, report bugs, or show intention in contributing.
 
-> git clone https://github.com/YOUR-USERNAME/ilayoutx.git
+After an initial conversation, you will be requested to create a patch and submit it via email. The best way to contribute code from SourceHut is via patches sent to the mailing list. Read the official sourcehut docs for info.
 
-This process can further be streamlined by using the 'branch' feature on git to create topic-specific or issue-specific branches. 
+:::
 
-> git checkout -b feature/feature-name
+:::{tab-item} Github
+Open an [issue on GitHub](https://github.com/fabilab/ilayoutx/issues) to request features, report bugs, or show intention in contributing.
 
-## Tests
+The best way to contribute code from GitHub is via Pull Requests (PRs). For new contributors:
+
+- Log into Github
+- [Create a fork of ilayoutx](https://github.com/fabilab/ilayoutx).
+- Clone this fork locally:
+
+```
+git clone https://github.com/YOUR-USERNAME/ilayoutx.git
+```
+
+- Create a local branch and switch to it (you can choose any branch name you fancy):
+
+```
+git checkout -b <branch name>
+```
+
+- Make your changes, using commits to document your work.
+
+- Test your changes by writing and ensuring you pass unit tests via `pytest` (see below).
+
+- Push your commits to your forked repository:
+
+```
+git push --set-upstream origin <branch name>
+```
+
+- From there, make the pull request against the ```main``` repository, including a clear title and a detailed description of what your code accomplishes.
+:::
+
+::::
+
+### Local setup
+Create a local virtual environment:
+```
+python -m venv .venv
+```
+Update pip (to support dependency groups):
+```
+.venv/bin/pip install --upgrade pip
+```
+Install maturin:
+```
+.venv/bin/pip install maturin
+```
+Develop the project in editable mode:
+```
+.venv/bin/maturin develop
+```
+Install test dependencies:
+```
+.venv/bin/pip install --groups test .
+```
+
+### Tests
 If you have added code that needs testing, add tests. Ensure the existing test suite passes before submitting your changes.
 
-## Pull Requests
-Once tests are passing, a pull request can be made. To do this, first push the relevant branch to your personal forked repo.
-
-> git push origin feature/your-feature-name
-
-From there, make the pull request against the ```main``` repository, including a clear title and a detailed description of what your code accomplishes.
+To test from a local setup, run:
+```
+.venv/bin/pytest
+```
+and make sure all tests are either passing or skipped. If you'd like to request help with passing tests, write to the issue you opened previously on SourceHut/GitHub.
