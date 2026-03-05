@@ -31,7 +31,7 @@ def arf(
         | np.ndarray
         | pd.DataFrame
     ] = None,
-    scaling: Optional[float] = 1.0,
+    scaling: float = 1.0,
     center: Optional[tuple[float, float]] = None,
     spring_strength: float = 1.1,
     etol: float = 1e-6,
@@ -81,20 +81,21 @@ def arf(
         )
         initial_coords.setflags(write=True)
 
-        edges = provider.edges()
+        if max_iter > 0:
+            edges = provider.edges()
 
-        # NOTE: the output is inserted in place into initial_coords
-        arf_networkx(
-            nv,
-            index,
-            edges,
-            pos=initial_coords,
-            scaling=scaling,
-            a=spring_strength,
-            etol=etol,
-            dt=dt,
-            max_iter=max_iter,
-        )
+            # NOTE: the output is inserted in place into initial_coords
+            arf_networkx(
+                nv,
+                index,
+                edges,
+                pos=initial_coords,
+                scaling=scaling,
+                a=spring_strength,
+                etol=etol,
+                dt=dt,
+                max_iter=max_iter,
+            )
         coords = initial_coords
 
     if center is not None:
