@@ -78,7 +78,7 @@ To test from a local setup, run:
 and make sure all tests are either passing or skipped. If you'd like to request help with passing tests, write into the issue you previously had open on SourceHut/GitHub.
 
 ### Pull regularly
-Remember to pull regularly, so your repo is up to date!
+Remember to pull upstream regularly, so your local repo is up to date with the current state of master!
 ``` 
 git remote add upstream https://github.com/fabilab/ilayoutx
 ```
