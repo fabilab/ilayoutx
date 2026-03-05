@@ -7,14 +7,14 @@ ilayoutx is mainly developed on sourcehut, but we accept contributions from GitH
 ::::{tab-set}
 
 :::{tab-item} SourceHut
-Open a [ticket on SourceHut](https://todo.sr.ht/~iosonofabio/ilayoutx) to request features, report bugs, or show intention in contributing.
+Open a [ticket on SourceHut](https://todo.sr.ht/~iosonofabio/ilayoutx) to request features, report bugs, or express intention to contribute.
 
 After an initial conversation, you will be requested to create a patch and submit it via email. The best way to contribute code from SourceHut is via patches sent to the mailing list. Read the official sourcehut docs for info.
 
 :::
 
 :::{tab-item} Github
-Open an [issue on GitHub](https://github.com/fabilab/ilayoutx/issues) to request features, report bugs, or show intention in contributing.
+Open an [issue on GitHub](https://github.com/fabilab/ilayoutx/issues) to request features, report bugs, or express intention to contribute.
 
 The best way to contribute code from GitHub is via Pull Requests (PRs). For new contributors:
 
@@ -76,4 +76,4 @@ To test from a local setup, run:
 ```
 .venv/bin/pytest
 ```
-and make sure all tests are either passing or skipped. If you'd like to request help with passing tests, write to the issue you opened previously on SourceHut/GitHub.
+and make sure all tests are either passing or skipped. If you'd like to request help with passing tests, write into the issue you previously had open on SourceHut/GitHub.
