@@ -68,7 +68,6 @@ Install test dependencies:
 ```
 .venv/bin/pip install --groups test .
 ```
-
 ### Tests
 If you have added code that needs testing, add tests. Ensure the existing test suite passes before submitting your changes.
 
@@ -77,3 +76,16 @@ To test from a local setup, run:
 .venv/bin/pytest
 ```
 and make sure all tests are either passing or skipped. If you'd like to request help with passing tests, write into the issue you previously had open on SourceHut/GitHub.
+
+### Pull regularly
+Remember to pull regularly, so your repo is up to date!
+``` 
+git remote add upstream https://github.com/fabilab/ilayoutx
+```
+```
+git fetch upstream 
+```
+Be sure to merge upstream changes locally:
+```
+git merge upstream/main
+```
