@@ -60,7 +60,7 @@ Either way, the result is the same:
 4  0.309017 -0.951057
 ```
 
-If you want to visualise the layouted graph, you can use [iplotx](https://iplotx.readthedocs.io/en/latest/):
+If you want to visualise the layouted graph you can use [iplotx](https://iplotx.readthedocs.io/en/latest/):
 
 ```
 import iplotx as ipx
@@ -74,6 +74,3 @@ We believe graph **analysis**, graph **layouting**, and graph **visualisation** 
 We have not yet written a publication for `ilayoutx`. If you would like to use `ilayoutx` for a publication, please contact us on our mailing list:
 
 https://lists.sr.ht/~iosonofabio/ilayoutx-dev
-
-## Contributing
-Open an [issue on SourceHut](https://todo.sr.ht/~iosonofabio/ilayoutx) to request features, report bugs, or show intention in contributing.
