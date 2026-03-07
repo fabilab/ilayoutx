@@ -13,20 +13,14 @@ from ..ingest import (
     data_providers,
 )
 from ..utils import (
-    _format_initial_coords,
     _recenter_layout,
-)
-from ..external.networkx.arf import (
-    arf_networkx,
-)
-from ilayoutx._ilayoutx import (
-    random as random_rust,
 )
 
 
 def _dendrogram_from_hierarchy(
     hierarchy_df: pd.DataFrame,
     coords: np.ndarray,
+    index: Optional[np.ndarray | pd.Index] = None,
 ) -> None:
     """Build a right oriented rectangular dendrogram from a nondegenerate hierarchy dataframe.
 
@@ -76,7 +70,6 @@ def _dendrogram_from_hierarchy(
 def rectangular_dendrogram(
     network,
     root: Hashable,
-    edge_length_attribute: str = None,
     center: Optional[tuple[float, float]] = None,
     orientation: str = "right",
 ) -> pd.DataFrame:
@@ -116,13 +109,12 @@ def rectangular_dendrogram(
         for layer_switch in hierarchy["layer_switch"]:
             hierarchy_df.loc[hierarchy_df.index >= layer_switch, "layer"] += 1
 
-        if edge_length_attribute is None:
-            hierarchy_df["depth"] = hierarchy_df["layer"].astype(np.float64)
-        else:
-            # TODO: use edge_length_attribute to compute depth
-            pass
+        # NOTE: We should support arbitrar edge lengths, but then it's unclear a
+        # simple bfs traversal would be sufficient (as opposed to some minimal
+        # spanning tree).
+        hierarchy_df["depth"] = hierarchy_df["layer"].astype(np.float64)
 
-        _dendrogram_from_hierarchy(hierarchy_df, coords)
+        _dendrogram_from_hierarchy(hierarchy_df, coords, index)
 
         if orientation == "left":
             coords[:, 0] *= -1
@@ -291,7 +283,7 @@ def _waypoints_from_hierarchy(
 
 def edgebundle(
     network,
-    linkage: np.ndarray | pd.DataFrame,
+    linkage: Optional[np.ndarray | pd.DataFrame] = None,
     center: Optional[tuple[float, float]] = None,
     orientation: str = "right",
     theta: float = 0.0,
@@ -311,6 +303,22 @@ def edgebundle(
     if nv == 1:
         coords = np.array([[0.0, 0.0]], dtype=np.float64)
     else:
+        if linkage is None:
+            from scipy.sparse import coo_matrix
+            from scipy.cluster.hierarchy import linkage as linkage_fun
+            from scipy.spatial.distance import squareform
+
+            sources, targets = zip(*provider.edges())
+            edge_weights = [1.0 for _ in sources]
+            cdist = 1.0 / (
+                coo_matrix((edge_weights, (sources, targets)), shape=(nv, nv)).toarray() + 1e-10
+            )
+            cdist += cdist.T
+            pdist = squareform(cdist)
+            linkage = linkage_fun(pdist)
+        elif isinstance(linkage, pd.DataFrame):
+            linkage = linkage.values
+
         # Prepare memory for additional vertices to be used as edge waypoints
         # The second column of a linkage is the index of the parent
         coords = np.zeros((int(linkage[:, 1].max()) + 1, 2), dtype=np.float64)
@@ -319,7 +327,15 @@ def edgebundle(
         hierarchy_df = _hierarchy_from_linkage(linkage, index)
 
         # Assign coordintes to all vertices including the internal ones
-        _dendrogram_from_hierarchy(hierarchy_df, coords)
+        _dendrogram_from_hierarchy(hierarchy_df, coords, index)
+
+        # Make circular with appropriate theta offset and orientation
+        radius = coords[:, 0].copy()
+        angle = -2 * coords[:, 1] * np.pi / (coords[:, 1].max() + 1)
+        if orientation == "left":
+            angle *= -1
+        coords[:, 0] = radius * np.cos(angle + theta)
+        coords[:, 1] = radius * np.sin(angle + theta)
 
         # Assign waypoints (internal nodes) to edges as waypoints
         waypoints = _waypoints_from_hierarchy(
