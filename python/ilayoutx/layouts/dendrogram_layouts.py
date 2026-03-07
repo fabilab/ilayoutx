@@ -1,4 +1,5 @@
 from typing import (
+    Sequence,
     Optional,
 )
 from collections.abc import (
@@ -23,9 +24,59 @@ from ilayoutx._ilayoutx import (
 )
 
 
+def _dendrogram_from_hierarchy(
+    hierarchy_df: pd.DataFrame,
+    coords: np.ndarray,
+) -> None:
+    """Build a right oriented rectangular dendrogram from a nondegenerate hierarchy dataframe.
+
+    Parameters:
+        hierarchy_df: a dataframe with columns "vertices", "parents", "layer", and "depth".
+        coords: a numpy array of shape (nv, 2) to write the coordinates to.
+    Returns:
+        None. The coordinates are written to the coords array in place.
+    """
+
+    nv = len(hierarchy_df)
+    hierarchy_df["seen"] = False
+
+    hierarchy_df = hierarchy_df.set_index("vertices", drop=False).loc[index]
+    hierarchy_df["index"] = np.arange(nv)
+    hierarchy_df["y"] = 0.0
+
+    # Assume right orientation, then modify as needed
+    coords[:, 0] = hierarchy_df["depth"]
+
+    # Assign the y coordinate of the leaves
+    leaves = list(set(hierarchy_df["vertices"].values) - set(hierarchy_df["parents"].values))
+    print(leaves)
+    print(hierarchy_df)
+    hierarchy_df.loc[leaves, "seen"] = True
+    hierarchy_df.loc[leaves, "y"] = np.arange(len(leaves))
+
+    # Group by layer and parent, from high to low layers, and assign the
+    # y coordinate as average of the children
+    hierarchy_df["neglayer"] = -hierarchy_df["layer"]
+    for layer, hierarchy_df_layer in hierarchy_df.groupby("neglayer"):
+        # The root is always (0, 0)
+        if layer == -1:
+            break
+        yparents = hierarchy_df_layer.groupby("parents")["y"].mean()
+        parents = yparents.index
+        hierarchy_df.loc[parents, "seen"] = True
+        hierarchy_df.loc[parents, "y"] = yparents.values
+
+    coords[:, 1] = hierarchy_df["y"].values
+    del hierarchy_df["seen"]
+    del hierarchy_df["neglayer"]
+    del hierarchy_df["index"]
+    del hierarchy_df["y"]
+
+
 def rectangular_dendrogram(
     network,
     root: Hashable,
+    edge_length_attribute: str = None,
     center: Optional[tuple[float, float]] = None,
     orientation: str = "right",
 ) -> pd.DataFrame:
@@ -64,35 +115,14 @@ def rectangular_dendrogram(
         )
         for layer_switch in hierarchy["layer_switch"]:
             hierarchy_df.loc[hierarchy_df.index >= layer_switch, "layer"] += 1
-        hierarchy_df["seen"] = False
 
-        hierarchy_df = hierarchy_df.set_index("vertices", drop=False).loc[index]
-        hierarchy_df["index"] = np.arange(nv)
-        hierarchy_df["y"] = 0.0
+        if edge_length_attribute is None:
+            hierarchy_df["depth"] = hierarchy_df["layer"].astype(np.float64)
+        else:
+            # TODO: use edge_length_attribute to compute depth
+            pass
 
-        # Assume right orientation, then modify as needed
-        coords[:, 0] = hierarchy_df["layer"].astype(np.float64)
-
-        # Assign the y coordinate of the leaves
-        leaves = list(set(hierarchy["vertices"]) - set(hierarchy["parents"]))
-        print(leaves)
-        print(hierarchy_df)
-        hierarchy_df.loc[leaves, "seen"] = True
-        hierarchy_df.loc[leaves, "y"] = np.arange(len(leaves))
-
-        # Group by layer and parent, from high to low layers, and assign the
-        # y coordinate as average of the children
-        hierarchy_df["neglayer"] = -hierarchy_df["layer"]
-        for layer, hierarchy_df_layer in hierarchy_df.groupby("neglayer"):
-            # The root is always (0, 0)
-            if layer == -1:
-                break
-            yparents = hierarchy_df_layer.groupby("parents")["y"].mean()
-            parents = yparents.index
-            hierarchy_df.loc[parents, "seen"] = True
-            hierarchy_df.loc[parents, "y"] = yparents.values
-
-        coords[:, 1] = hierarchy_df["y"].values
+        _dendrogram_from_hierarchy(hierarchy_df, coords)
 
         if orientation == "left":
             coords[:, 0] *= -1
@@ -149,3 +179,160 @@ def circular_dendrogram(
         layout[["x", "y"]] = coords
 
     return layout
+
+
+def _hierarchy_from_linkage(
+    linkage: np.ndarray | pd.DataFrame,
+    index: np.ndarray | pd.Index,
+) -> pd.DataFrame:
+    """Build a hierarchy dataframe from a linkage matrix.
+
+    Parameters:
+        linkage: a linkage matrix in the format of scipy's hierarchical clustering.
+    Returns:
+        pd.DataFrame with columns "vertices", "parents", "layer", and "depth".
+    """
+    # NOTE: linkage starts from the leaves and ends with the root, keep it for now
+    hierarchy_df = pd.DataFrame(
+        linkage[:, :2].astype(np.int64),
+        columns=["vertices_idx", "parents_idx"],
+        dtype=np.float64,
+    )
+    hierarchy_df["delta_depth"] = linkage[:, 2]
+    hierarchy_df["vertices"] = index[hierarchy_df["vertices_idx"]]
+    # NOTE: "parents" of the root is wrong, but it's ok, we know it's the first row
+    hierarchy_df["parents"] = index[hierarchy_df["parents_idx"]]
+
+    hierarchy_df["layer"] = 0
+    hierarchy_df["depth"] = 0.0
+    for i in range(len(hierarchy_df) - 1, -1, -1):
+        row = hierarchy_df.iloc[i]
+        parent_idx = row["parents_idx"]
+        if row["parents_idx"] == -1:
+            continue
+
+        hierarchy_df.at[i, "layer"] = hierarchy_df.at[parent_idx, "layer"] + 1
+        hierarchy_df.at[i, "depth"] = hierarchy_df.at[parent_idx, "depth"] + row["delta_depth"]
+
+    del hierarchy_df["vertices_idx"]
+    del hierarchy_df["parents_idx"]
+    del hierarchy_df["delta_depth"]
+
+    # Reverse and reindex to start from the root
+    hierarchy_df = hierarchy_df.iloc[::-1].reset_index(drop=True)
+
+    return hierarchy_df
+
+
+def _compute_waypoints_for_edge(
+    hierarchy_df: pd.DataFrame,
+    edge: tuple[Hashable, Hashable],
+    coords: np.ndarray,
+):
+    """Compute waypoints for a single edge based on the hierarchy.
+
+    Parameters:
+        hierarchy_df: a dataframe with columns "vertices", "parents", "layer", and "depth".
+        edge: a pair of vertices (source, target) representing an edge in the network.
+        coords: a numpy array containing the coordinates of the vertices, including the internal nodes.
+    Returns:
+        A list of waypoints along the path from the source to the target, excluding the source and target themselves.
+    """
+    source, target = edge
+    if source == target:
+        return []
+
+    head = []
+    tail = []
+
+    while source != target:
+        if hierarchy_df.at[source, "layer"] > hierarchy_df.at[target, "layer"]:
+            head.append(source)
+            source = hierarchy_df.at[source, "parents"]
+        elif hierarchy_df.at[source, "layer"] < hierarchy_df.at[target, "layer"]:
+            tail.append(target)
+            target = hierarchy_df.at[target, "parents"]
+        else:
+            head.append(source)
+            tail.append(target)
+            source = hierarchy_df.at[source, "parents"]
+            target = hierarchy_df.at[target, "parents"]
+    waypoint_vertices = head + [source] + tail[::-1]
+    waypoints = coords[hierarchy_df.loc[waypoint_vertices, "index"].values]
+    return waypoints[1:-1].tolist()
+
+
+def _waypoints_from_hierarchy(
+    hierarchy_df: pd.DataFrame,
+    edges: Sequence[tuple[Hashable, Hashable]],
+    coords: np.ndarray,
+) -> dict[Hashable, list[tuple[float, float]]]:
+    """Build a dictionary mapping each vertex to a list of waypoints along the path from the root to the vertex.
+
+    Parameters:
+        hierarchy_df: a dataframe with columns "vertices", "parents", "layer", and "depth".
+        edges: a sequence of edges in the network, as tuples of (source, target).
+        coords: a numpy array of shape (nv, 2) containing the coordinates of the vertices, including the .
+    Returns:
+        a dictionary mapping each vertex to a list of waypoints along the path from the root to the vertex.
+    """
+    # Create a head and a tail for each edge, we'll join them later
+
+    hierarchy_df = hierarchy_df.copy()
+    hierarchy_df["index"] = np.arange(len(hierarchy_df))
+    hierarchy_df = hierarchy_df.set_index("vertices", drop=False, inplace=True)
+
+    waypoints = {}
+    for edge in edges:
+        waypoints[edge] = _compute_waypoints_for_edge(hierarchy_df, edge, coords)
+
+    return waypoints
+
+
+def edgebundle(
+    network,
+    linkage: np.ndarray | pd.DataFrame,
+    center: Optional[tuple[float, float]] = None,
+    orientation: str = "right",
+    theta: float = 0.0,
+):
+    nl = network_library(network)
+    provider = data_providers[nl](network)
+
+    index = provider.vertices()
+    nv = provider.number_of_vertices()
+
+    waypoints = {}
+
+    if nv == 0:
+        layout = pd.DataFrame(columns=["x", "y"], dtype=np.float64)
+        return layout, waypoints
+
+    if nv == 1:
+        coords = np.array([[0.0, 0.0]], dtype=np.float64)
+    else:
+        # Prepare memory for additional vertices to be used as edge waypoints
+        # The second column of a linkage is the index of the parent
+        coords = np.zeros((int(linkage[:, 1].max()) + 1, 2), dtype=np.float64)
+
+        # Build hierarchy from linkage
+        hierarchy_df = _hierarchy_from_linkage(linkage, index)
+
+        # Assign coordintes to all vertices including the internal ones
+        _dendrogram_from_hierarchy(hierarchy_df, coords)
+
+        # Assign waypoints (internal nodes) to edges as waypoints
+        waypoints = _waypoints_from_hierarchy(
+            hierarchy_df,
+            provider.edges(),
+            coords,
+        )
+
+        # Trim the coordinates to the real (leaf) nodes only
+        coords = coords[-nv:]
+
+    if center is not None:
+        _recenter_layout(coords, center)
+
+    layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
+    return layout, waypoints
