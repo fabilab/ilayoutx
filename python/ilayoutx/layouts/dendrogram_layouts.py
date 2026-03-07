@@ -175,7 +175,7 @@ def circular_dendrogram(
 
 def _hierarchy_from_linkage(
     linkage: np.ndarray | pd.DataFrame,
-    index: np.ndarray | pd.Index,
+    index: Sequence[Hashable],
 ) -> pd.DataFrame:
     """Build a hierarchy dataframe from a linkage matrix.
 
@@ -188,12 +188,11 @@ def _hierarchy_from_linkage(
     hierarchy_df = pd.DataFrame(
         linkage[:, :2].astype(np.int64),
         columns=["vertices_idx", "parents_idx"],
-        dtype=np.float64,
     )
     hierarchy_df["delta_depth"] = linkage[:, 2]
-    hierarchy_df["vertices"] = index[hierarchy_df["vertices_idx"]]
+    hierarchy_df["vertices"] = [index[h] for h in hierarchy_df["vertices_idx"]]
     # NOTE: "parents" of the root is wrong, but it's ok, we know it's the first row
-    hierarchy_df["parents"] = index[hierarchy_df["parents_idx"]]
+    hierarchy_df["parents"] = [index[h] for h in hierarchy_df["parents_idx"]]
 
     hierarchy_df["layer"] = 0
     hierarchy_df["depth"] = 0.0
