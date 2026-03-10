@@ -47,12 +47,11 @@ def test_edgebundle_singleton(helpers, center):
 
 def test_edgebundle_two_nodes_no_edges_with_linkage_array(helpers):
     """Test edge bundle layout with nv>1 and explicit ndarray linkage."""
-    g = nx.Graph()
-    g.add_nodes_from([0, 1])
+    g = nx.from_edgelist([(0, 1)])
 
     linkage = np.array(
         [
-            [1, 0, 1.0],
+            [0, 1, 1.0],
         ],
         dtype=np.float64,
     )
@@ -63,13 +62,12 @@ def test_edgebundle_two_nodes_no_edges_with_linkage_array(helpers):
     assert layout.shape == (2, 2)
     assert all(layout.index == list(g.nodes()))
     assert np.isfinite(layout.values).all()
-    assert waypoints == {}
+    assert waypoints == {(0, 1): [[0.0, 0.0]]}
 
 
 def test_edgebundle_two_nodes_no_edges_linkage_dataframe_matches_array():
     """Test DataFrame linkage gives same result as ndarray linkage."""
-    g = nx.Graph()
-    g.add_nodes_from([0, 1])
+    g = nx.from_edgelist([(0, 1)])
 
     linkage = np.array(
         [
@@ -84,3 +82,33 @@ def test_edgebundle_two_nodes_no_edges_linkage_dataframe_matches_array():
     np.testing.assert_allclose(layout_df.values, layout_array.values, atol=1e-14)
     assert list(layout_df.index) == list(layout_array.index)
     assert waypoints_df == waypoints_array
+    assert waypoints_array == {(0, 1): [[0.0, 0.0]]}
+
+
+def test_edgebundle_four_nodes(helpers):
+    """Test three edges and four nodes with a simple nontrivial linkage."""
+    g = nx.from_edgelist([(0, 1), (1, 2), (2, 3)])
+
+    linkage = np.array(
+        [
+            [0, 1, 1.0],
+            [2, 3, 2.0],
+            [4, 5, 1.5],
+        ],
+        dtype=np.float64,
+    )
+    layout, waypoints = ilx.layouts.edgebundle(g, linkage=linkage)
+
+    helpers.check_generic_layout(layout)
+    assert layout.shape == (4, 2)
+    assert all(layout.index == list(g.nodes()))
+    assert np.isfinite(layout.values).all()
+    assert waypoints == {
+        (0, 1): [[0.7071067811865476, -0.7071067811865475]],
+        (1, 2): [
+            [0.7071067811865476, -0.7071067811865475],
+            [0.0, 0.0],
+            [-0.35355339059327384, 0.35355339059327373],
+        ],
+        (2, 3): [[-0.35355339059327384, 0.35355339059327373]],
+    }

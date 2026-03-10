@@ -5,6 +5,7 @@ from typing import (
 from collections.abc import (
     Hashable,
 )
+from collections import deque
 import numpy as np
 import pandas as pd
 
@@ -43,8 +44,6 @@ def _dendrogram_from_hierarchy(
 
     # Assign the y coordinate of the leaves
     leaves = list(set(hierarchy_df["vertices"].values) - set(hierarchy_df["parents"].values))
-    print(leaves)
-    print(hierarchy_df)
     hierarchy_df.loc[leaves, "seen"] = True
     hierarchy_df.loc[leaves, "y"] = np.arange(len(leaves))
 
@@ -175,7 +174,6 @@ def circular_dendrogram(
 
 def _hierarchy_from_linkage(
     linkage: np.ndarray | pd.DataFrame,
-    index: Sequence[Hashable],
 ) -> pd.DataFrame:
     """Build a hierarchy dataframe from a linkage matrix.
 
@@ -184,30 +182,46 @@ def _hierarchy_from_linkage(
     Returns:
         pd.DataFrame with columns "vertices", "parents", "layer", and "depth".
     """
+    nv = len(linkage) + 1
+
     # NOTE: linkage starts from the leaves and ends with the root, keep it for now
     hierarchy_df = pd.DataFrame(
-        linkage[:, :2].astype(np.int64),
-        columns=["vertices_idx", "parents_idx"],
+        {
+            "vertices": np.arange(2 * nv - 1),
+        }
     )
-    hierarchy_df["delta_depth"] = linkage[:, 2]
-    hierarchy_df["vertices"] = [index[h] for h in hierarchy_df["vertices_idx"]]
-    # NOTE: "parents" of the root is wrong, but it's ok, we know it's the first row
-    hierarchy_df["parents"] = [index[h] for h in hierarchy_df["parents_idx"]]
-
-    hierarchy_df["layer"] = 0
+    hierarchy_df["parents"] = -1
     hierarchy_df["depth"] = 0.0
-    for i in range(len(hierarchy_df) - 1, -1, -1):
-        row = hierarchy_df.iloc[i]
-        parent_idx = row["parents_idx"]
-        if row["parents_idx"] == -1:
-            continue
+    childrend = {}
+    for parent_idx, (vertex_idx1, vertex_idx2, distance) in enumerate(linkage[:, :3], nv):
+        hierarchy_df.at[vertex_idx1, "parents"] = parent_idx
+        hierarchy_df.at[vertex_idx2, "parents"] = parent_idx
 
-        hierarchy_df.at[i, "layer"] = hierarchy_df.at[parent_idx, "layer"] + 1
-        hierarchy_df.at[i, "depth"] = hierarchy_df.at[parent_idx, "depth"] + row["delta_depth"]
+        childrend[parent_idx] = (vertex_idx1, vertex_idx2)
 
-    del hierarchy_df["vertices_idx"]
-    del hierarchy_df["parents_idx"]
-    del hierarchy_df["delta_depth"]
+        # Depth
+        depth_max = max(
+            hierarchy_df.at[vertex_idx1, "depth"], hierarchy_df.at[vertex_idx2, "depth"]
+        )
+        delta_vertices = abs(
+            hierarchy_df.at[vertex_idx1, "depth"] - hierarchy_df.at[vertex_idx2, "depth"]
+        )
+        delta_from_max = 0.5 * (distance - delta_vertices)
+        hierarchy_df.at[parent_idx, "depth"] = depth_max + delta_from_max
+
+    # Measure depth from the root now
+    hierarchy_df["depth"] = hierarchy_df["depth"].max() - hierarchy_df["depth"]
+
+    # Set the layer from the root
+    hierarchy_df["layer"] = 0
+    node_idx_queue = deque([hierarchy_df.index[-1]])
+    while node_idx_queue:
+        node_idx = node_idx_queue.popleft()
+        children = childrend.pop(node_idx, tuple())
+        for child in children:
+            hierarchy_df.at[child, "layer"] = hierarchy_df.at[node_idx, "layer"] + 1
+            node_idx_queue.append(child)
+    del childrend, node_idx_queue
 
     # Reverse and reindex to start from the root
     hierarchy_df = hierarchy_df.iloc[::-1].reset_index(drop=True)
@@ -218,14 +232,14 @@ def _hierarchy_from_linkage(
 def _compute_waypoints_for_edge(
     hierarchy_df: pd.DataFrame,
     edge: tuple[Hashable, Hashable],
-    coords: np.ndarray,
+    hierarchy_coords: np.ndarray,
 ):
     """Compute waypoints for a single edge based on the hierarchy.
 
     Parameters:
         hierarchy_df: a dataframe with columns "vertices", "parents", "layer", and "depth".
         edge: a pair of vertices (source, target) representing an edge in the network.
-        coords: a numpy array containing the coordinates of the vertices, including the internal nodes.
+        hierarchy_coords: a numpy array containing the coordinates of the vertices, including the internal nodes.
     Returns:
         A list of waypoints along the path from the source to the target, excluding the source and target themselves.
     """
@@ -235,7 +249,6 @@ def _compute_waypoints_for_edge(
 
     head = []
     tail = []
-
     while source != target:
         if hierarchy_df.at[source, "layer"] > hierarchy_df.at[target, "layer"]:
             head.append(source)
@@ -248,16 +261,16 @@ def _compute_waypoints_for_edge(
             tail.append(target)
             source = hierarchy_df.at[source, "parents"]
             target = hierarchy_df.at[target, "parents"]
-    waypoint_vertices = head + [source] + tail[::-1]
-    waypoints = coords[hierarchy_df.loc[waypoint_vertices, "index"].values]
-    return waypoints[1:-1].tolist()
+    waypoint_vertices = (head + [source] + tail[::-1])[1:-1]
+    waypoints_coords = hierarchy_coords[waypoint_vertices]
+    return waypoints_coords.tolist()
 
 
 def _waypoints_from_hierarchy(
     hierarchy_df: pd.DataFrame,
     edges: Sequence[tuple[Hashable, Hashable]],
-    coords: np.ndarray,
-) -> dict[Hashable, list[tuple[float, float]]]:
+    hierarchy_coords: np.ndarray,
+) -> tuple[np.ndarray, dict[Hashable, list[tuple[float, float]]]]:
     """Build a dictionary mapping each vertex to a list of waypoints along the path from the root to the vertex.
 
     Parameters:
@@ -271,13 +284,16 @@ def _waypoints_from_hierarchy(
 
     hierarchy_df = hierarchy_df.copy()
     hierarchy_df["index"] = np.arange(len(hierarchy_df))
-    hierarchy_df = hierarchy_df.set_index("vertices", drop=False, inplace=True)
+    hierarchy_df.set_index("vertices", drop=False, inplace=True)
 
     waypoints = {}
     for edge in edges:
-        waypoints[edge] = _compute_waypoints_for_edge(hierarchy_df, edge, coords)
+        waypoints[edge] = _compute_waypoints_for_edge(hierarchy_df, edge, hierarchy_coords)
 
-    return waypoints
+    nv = (len(hierarchy_df) + 1) // 2
+    coords = hierarchy_coords[:nv]
+
+    return coords, waypoints
 
 
 def edgebundle(
@@ -309,10 +325,10 @@ def edgebundle(
 
             sources, targets = zip(*provider.edges())
             edge_weights = [1.0 for _ in sources]
-            cdist = 1.0 / (
-                coo_matrix((edge_weights, (sources, targets)), shape=(nv, nv)).toarray() + 1e-10
-            )
+            cdist = coo_matrix((edge_weights, (sources, targets)), shape=(nv, nv)).toarray()
             cdist += cdist.T
+            cdist = 1.0 / (cdist + 1e-10)
+            cdist[np.arange(len(cdist)), np.arange(len(cdist))] = 0
             pdist = squareform(cdist)
             linkage = linkage_fun(pdist)
         elif isinstance(linkage, pd.DataFrame):
@@ -320,31 +336,29 @@ def edgebundle(
 
         # Prepare memory for additional vertices to be used as edge waypoints
         # The second column of a linkage is the index of the parent
-        coords = np.zeros((int(linkage[:, 1].max()) + 1, 2), dtype=np.float64)
 
         # Build hierarchy from linkage
-        hierarchy_df = _hierarchy_from_linkage(linkage, index)
+        hierarchy_df = _hierarchy_from_linkage(linkage)
+        hierarchy_index = np.arange(len(hierarchy_df))
+        hierarchy_coords = np.zeros((len(hierarchy_df), 2), dtype=np.float64)
 
         # Assign coordintes to all vertices including the internal ones
-        _dendrogram_from_hierarchy(hierarchy_df, coords, index)
+        _dendrogram_from_hierarchy(hierarchy_df, hierarchy_coords, hierarchy_index)
 
         # Make circular with appropriate theta offset and orientation
-        radius = coords[:, 0].copy()
-        angle = -2 * coords[:, 1] * np.pi / (coords[:, 1].max() + 1)
+        radius = hierarchy_coords[:, 0].copy()
+        angle = -2 * hierarchy_coords[:, 1] * np.pi / (hierarchy_coords[:, 1].max() + 1)
         if orientation == "left":
             angle *= -1
-        coords[:, 0] = radius * np.cos(angle + theta)
-        coords[:, 1] = radius * np.sin(angle + theta)
+        hierarchy_coords[:, 0] = radius * np.cos(angle + theta)
+        hierarchy_coords[:, 1] = radius * np.sin(angle + theta)
 
         # Assign waypoints (internal nodes) to edges as waypoints
-        waypoints = _waypoints_from_hierarchy(
+        coords, waypoints = _waypoints_from_hierarchy(
             hierarchy_df,
             provider.edges(),
-            coords,
+            hierarchy_coords,
         )
-
-        # Trim the coordinates to the real (leaf) nodes only
-        coords = coords[-nv:]
 
     if center is not None:
         _recenter_layout(coords, center)
