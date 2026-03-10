@@ -17,3 +17,4 @@ installing
 API <api>
 Data providers <providers>
 Code of conduct <code_of_conduct>
+Contributing <contributing>
