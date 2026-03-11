@@ -7,7 +7,7 @@
 
 # ilayoutx
 
-Compute fast network layouts. Intended as the upstream companion for [iplotx](https://git.sr.ht/~iosonofabio/iplotx).
+Compute fast network layouts. Intended as the upstream companion for [iplotx](https://sr.ht/~iosonofabio/iplotx/).
 
 **NOTE**: This software is alpha quality. The API is very much in flux, and the documentation is sparse. Use at your own risk.
 
@@ -23,9 +23,10 @@ pip install ilayoutx[all]
 ```
 
 ## Resources
+ - **Project page**: https://sr.ht/~iosonofabio/ilayoutx/
  - **Documentation**: https://ilayoutx.readthedocs.io/en/main
  - **Issues**: https://todo.sr.ht/~iosonofabio/ilayoutx
- - **Mailing list**: https://lists.sr.ht/~iosonofabio/ilayoutx-dev
+ - **Mailing list / Patches**: https://lists.sr.ht/~iosonofabio/ilayoutx-dev
  - **Pull Requests**: This project prefers patches via the mailing list, however PRs on GitHub are currently accepted.
 
 ## Quickstart
@@ -59,8 +60,11 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - Geometric (from [netgraph](https://github.com/paulbrodersen/netgraph))
   - LGL (from [igraph](https://igraph.org/))
 
-- **Directed acyclic graphs (DAGs)**:
+- **Tree or Directed acyclic graph (DAG)**:
   - Sugiyama including edge routing (only for directed graphs ATM).
+  - Rectangular dendrogram
+  - Circular dendrogram
+  - Circular edge bundle
 
 - **Machine learning**:
   - UMAP (supports **arbitrary graphs**, not just knn graphs)
@@ -83,7 +87,8 @@ visualisation (intuitively, when zoomed out, things tend to look more crowded). 
 
 The following edge routing algorithms are implemented:
 
-- Sugiyama edge routing for DAGs.
+- Sugiyama (DAG).
+- Edge bundle.
 
 ## Wishlist
 - **Tree-like**:
@@ -95,4 +100,5 @@ The layout code is in Rust and exposed to Python via the amazing [PyO3](https://
 I'm a rust beginner, please be kind when judging this codebase. Feel free to open an [issue](https://todo.sr.ht/~iosonofabio/ilayoutx) on SourceHut if you have questions.
 
 ## Authors
-Fabio Zanini (https://fabilab.org)
+- Fabio Zanini (https://fabilab.org) - Maintainer.
+- Jessica Le - Contributor.
