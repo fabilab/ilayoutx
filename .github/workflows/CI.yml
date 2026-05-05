@@ -50,7 +50,7 @@ jobs:
           sccache: false
           manylinux: auto
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
@@ -112,7 +112,7 @@ jobs:
           sccache: false
           manylinux: musllinux_1_2
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-musllinux-${{ matrix.platform.target }}
           path: dist
@@ -174,7 +174,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: false
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-windows-${{ matrix.platform.target }}
           path: dist
@@ -213,7 +213,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: false
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
@@ -240,7 +240,7 @@ jobs:
           args: --out dist
           sccache: false
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: dist
@@ -260,7 +260,7 @@ jobs:
       attestations: write
     environment: pypi
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
