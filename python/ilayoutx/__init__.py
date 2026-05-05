@@ -1,7 +1,7 @@
 """ilayoutx root module."""
 
-from ilayoutx._ilayoutx import __version__
-from ilayoutx import (
+from ._ilayoutx import __version__
+from . import (
     layouts,
     packing,
     routing,

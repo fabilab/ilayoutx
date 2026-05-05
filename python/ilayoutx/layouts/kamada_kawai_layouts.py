@@ -4,7 +4,7 @@ from typing import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     circle,
 )
 from ..ingest import (

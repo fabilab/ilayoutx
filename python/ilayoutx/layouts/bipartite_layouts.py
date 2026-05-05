@@ -5,7 +5,7 @@ from typing import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     bipartite as bipartite_rust,
 )
 from ..ingest import data_providers, network_library

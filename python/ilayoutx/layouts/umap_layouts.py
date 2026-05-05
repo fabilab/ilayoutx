@@ -27,7 +27,7 @@ from ilayoutx.external.umap import (
     _apply_forces_numba_serial,
     _apply_forces_python,
 )
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
     _umap_apply_forces as _apply_forces_rust,
 )

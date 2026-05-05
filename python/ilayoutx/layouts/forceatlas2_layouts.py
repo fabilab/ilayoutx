@@ -18,7 +18,7 @@ from ..utils import (
 from ..external.networkx.forceatlas2 import (
     forceatlas2_layout as fa2_networkx,
 )
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
 )
 

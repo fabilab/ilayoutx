@@ -13,7 +13,7 @@ from collections.abc import (
 import numpy as np
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     circle,
 )
 from ..ingest import (
@@ -21,7 +21,7 @@ from ..ingest import (
     data_providers,
 )
 from ..utils import _format_initial_coords
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
 )
 

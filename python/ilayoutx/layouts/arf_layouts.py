@@ -18,7 +18,7 @@ from ..utils import (
 from ..external.networkx.arf import (
     arf_networkx,
 )
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
 )
 

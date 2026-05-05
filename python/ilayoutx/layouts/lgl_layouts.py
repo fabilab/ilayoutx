@@ -17,7 +17,7 @@ from ilayoutx.utils import (
     _recenter_layout,
     _rescale_layout,
 )
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
 )
 from ilayoutx.experimental.utils import get_debug_bool
