@@ -56,7 +56,6 @@ def spring(
         gravity: Gravity force scaling to apply towards the center.
         exponent_attraction: Exponent for the attraction force (1.0 means spring-like attraction).
         exponent_repulsion: Exponent for the repulsion force (-2.0 means gravity-like repulsion).
-        method: The method to use. Currently only "force" is supported.
         etol: Gradient sum of spring forces must be larger than etol before successful termination.
         max_iter: Max iterations before termination of the algorithm.
         seed: A random seed to use.

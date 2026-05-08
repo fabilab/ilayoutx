@@ -9,18 +9,33 @@ from typing import (
     Protocol,
 )
 
+# Accept as entry points both ilayoutx... and iplotx... to simplify downstream developers' life a bit.
+# NOTE: ilayoutx MUST be first to ensure our own implementations are always there and preferred over
+# any third-party ones with the EXACT same name.
+_module_prefixes = (
+    "ilayoutx",
+    "iplotx",
+)
+
 
 # Internally supported data providers
 data_providers: dict[str, Protocol] = {}
 providers_path = pathlib.Path(__file__).parent.joinpath("providers")
 for importer, module_name, _ in pkgutil.iter_modules([providers_path]):
-    module = importlib.import_module(f"ilayoutx.ingest.providers.{module_name}")
-    for key, val in module.__dict__.items():
-        if key == "NetworkDataProvider":
+    for module_prefix in _module_prefixes:
+        try:
+            module = importlib.import_module(f"{module_prefix}.ingest.providers.{module_name}")
+        except ModuleNotFoundError:
             continue
-        if key.endswith("DataProvider"):
-            data_providers[module_name] = val
-            break
+        for key, val in module.__dict__.items():
+            if key == "NetworkDataProvider":
+                continue
+            # If it's already there, do not overwrite it (see note above).
+            if module_name in data_providers:
+                continue
+            if key.endswith("DataProvider"):
+                data_providers[module_name] = val
+                break
 del providers_path
 
 

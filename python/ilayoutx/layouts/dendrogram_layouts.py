@@ -303,6 +303,21 @@ def edgebundle(
     orientation: str = "right",
     theta: float = 0.0,
 ):
+    """Circular edge bundle layout algorithm.
+
+    Parameters:
+        network: The network to layout.
+        linkage: If not None, a linkage matrix in the format of scipy's hierarchical clustering.
+            If None, the linkage will be computed from the network's adjacency matrix using a
+            simple heuristic.
+        center: If not None, shift the center of the layout around this point.
+        orientation: The orientation of the layout. One of "right" or "left".
+        theta: Angle in radians to rotate the layout.
+
+    Returns:
+        A tuple (layout, waypoints) where layout is a DataFrame with the node coordinates and
+        waypoints is a dictionary mapping each edge to a list of waypoints for edge routing.
+    """
     nl = network_library(network)
     provider = data_providers[nl](network)
 
@@ -361,7 +376,9 @@ def edgebundle(
         )
 
     if center is not None:
-        _recenter_layout(coords, center)
+        coords += np.array(center, dtype=np.float64)
+        # FIXME: edge bundle is fundamentally a circle, then we should just shift not recenter based on heuristics
+        # _recenter_layout(coords, center)
 
     layout = pd.DataFrame(coords, index=index, columns=["x", "y"])
     return layout, waypoints

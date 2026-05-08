@@ -1,4 +1,12 @@
-"""Node layout algorithms for ilayoutx."""
+"""
+Node layout algorithms for ilayoutx.
+
+Most of these functions return a pandas.DataFrame with the node layout coordinates.
+However, some specific functions for which edge routing is important return a pair (2-ple)
+in which the first element is the layout dataframe and the second element is a dictionary
+mapping each edge to a list of waypoints / control points for edge routing. Examples of
+this latter category include the Sugiyama layout and the edge bundling layout.
+"""
 
 from .basic_layouts import (
     line,

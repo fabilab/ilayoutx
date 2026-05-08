@@ -6,7 +6,7 @@ pip install ilayoutx
 If you want to use [numba](https://numba.pydata.org/) to accelerate and parallelise some layouts (notably UMAP):
 
 ```
-pip install ilayoutx[fastmail]
+pip install ilayoutx[fastmath]
 ```
 
 If you would like to also install [iplotx](https://iplotx.readthedocs.io/en/latest/) for visualisation:
@@ -68,7 +68,7 @@ ipx.network(g, layout)
 ```
 
 ## Rationale
-We believe graph **analysis**, graph **layouting**, and graph **visualisation** to be three separate tasks. `ilayoutx` currently focuses on layouting and the related task of edge routing.
+We believe graph **analysis**, graph **layouting**, and graph **visualisation** to be three separate tasks. `ilayoutx` currently focuses on layouting and the related task of edge routing. The sister package [iplotx](https://iplotx.readthedocs.io/en/latest/) focuses on visualisation.
 
 ## Citation
 We have not yet written a publication for `ilayoutx`. If you would like to use `ilayoutx` for a publication, please contact us on our mailing list:
