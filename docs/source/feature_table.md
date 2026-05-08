@@ -2,13 +2,13 @@
 
 | Layout | Angle | Center/Position | Scaling/Radius | Random seed | Sizing | max iter | Init coords | Additional params* |
 |-|-|-|-|-|-|-|-|-|
-| {py:func}`Line <ilayoutx.layouts.line>`| ✓ | ✕ | ✕| ✕| ✕ | ✕ | ✕ | - |
-| {py:func}`Circle <ilayoutx.layouts.circle>` | ✓ | ✓ | ✓| ✓| ? |✕ | ✕ | - |
-| {py:func}`Shell <ilayoutx.layouts.shell>` | ✓ | ✓ | ✓| ✓| ✕ |✕ | ✕ | - |
-| {py:func}`Spiral <ilayoutx.layouts.spiral>` | ✓ | ✓ | ✓| ✓| ✕ |✕ | ✕ | slope, exponent |
+| {py:func}`Line <ilayoutx.layouts.line>`| ✓ | ✓ | ✓ | ✕ | ✕ | ✕ | ✕ | - |
+| {py:func}`Circle <ilayoutx.layouts.circle>` | ✓ | ✓ | ✓| ✕| ✓ | ✕ | ✕ | - |
+| {py:func}`Shell <ilayoutx.layouts.shell>` | ✓ | ✓ | ✓| ✕ | ✕ |✕ | ✕ | - |
+| {py:func}`Spiral <ilayoutx.layouts.spiral>` | ✓ | ✓ | ✓| ✕ | ✕ |✕ | ✕ | slope, exponent |
 | {py:func}`Random <ilayoutx.layouts.random>` | ✕ | ✕ | ✕| ✓| ✕ |✕ | ✕ | max_tries |
 | {py:func}`Grid <ilayoutx.layouts.grid>` | ✕ | ✕ | ✓| ✕| ✕ |✕ | ✕ | width, shape, trim_even_rows (triangular) |
-| {py:func}`Bipartite <ilayoutx.layouts.bipartite>` | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
+| {py:func}`Bipartite <ilayoutx.layouts.bipartite>` | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition, distance |
 | {py:func}`Multipartite <ilayoutx.layouts.multipartite>` | ✕ | ✓ | ✕| ✕| ✕ |✕ | ✕ | - |
 | {py:func}`Sugiyama <ilayoutx.layouts.sugiyama>` | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
 | {py:func}`Spring <ilayoutx.layouts.spring>` | ✕ | ✕ | ✓ | ✓ | ✓ |✓ | ✓ | optimal_distance, gravity, fixed nodes, method (force/energy), exponent attraction/repulsion, etol|
