@@ -17,7 +17,7 @@ from ..external.networkx.spring import (
     _spring,
     _spring_energy,
 )
-from ilayoutx._ilayoutx import (
+from .._ilayoutx import (
     random as random_rust,
 )
 

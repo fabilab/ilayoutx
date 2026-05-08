@@ -2,27 +2,6 @@ use numpy::{PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
-/// Line layout, any angle theta in degrees
-///
-/// Parameters:
-///     n (int): The number of vertices.
-///     theta (float): The angle of the line in degrees.
-/// Returns:
-///     Ah n x 2 array containing the x and y coordinates of the vertices.
-#[pyfunction]
-#[pyo3(signature = (n, theta=0.0))]
-pub fn line(py: Python<'_>, n: usize, theta: f64) -> PyResult<Bound<'_, PyArray2<f64>>> {
-    let theta = theta.to_radians();
-    let coords = PyArray2::<f64>::zeros(py, [n, 2], true);
-    for i in 0..n {
-        unsafe {
-            *coords.get_mut([i, 0]).unwrap() = (i as f64) * theta.cos();
-            *coords.get_mut([i, 1]).unwrap() = (i as f64) * theta.sin();
-        }
-    }
-    Ok(coords)
-}
-
 /// Circle layout, starting vertex at any angle theta in degrees
 ///
 /// Parameters:

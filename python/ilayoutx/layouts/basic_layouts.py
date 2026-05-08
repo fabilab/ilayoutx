@@ -11,26 +11,37 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform, cdist
 import pandas as pd
 
-from ilayoutx._ilayoutx import (
-    line as line_rust,
+from .._ilayoutx import (
     random as random_rust,
     shell as shell_rust,
     spiral as spiral_rust,
 )
-from ..ingest import data_providers, network_library
+from ..utils import (
+    _recenter_layout,
+)
+from ..ingest import (
+    data_providers,
+    network_library,
+)
 
 
 def line(
     network,
     theta: float = 0.0,
+    scale: float = 1.0,
+    center: Optional[tuple[float, float]] = None,
 ):
     """Line layout.
 
     Parameters:
         network: The network to layout.
         theta: The angle of the line in radians.
+        scale: The distance between consecutive vertices along the line.
+        center: If not None, recenter the final layout at this point as a tuple (x, y).
     Returns:
         A pandas.DataFrame with the layout.
+
+    The order of operations is: rotation, scaling, recentering.
     """
     nl = network_library(network)
     provider = data_providers[nl](network)
@@ -39,9 +50,17 @@ def line(
     if nv == 0:
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
-    coords = line_rust(nv, np.degrees(theta))
+    coords = np.zeros((nv, 2), dtype=np.float64)
+    coords[:, 0] = np.arange(nv) * np.cos(theta)
+    coords[:, 1] = np.arange(nv) * np.sin(theta)
+
+    coords *= scale
+
+    if center is not None:
+        _recenter_layout(coords, center)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
+
     return layout
 
 
@@ -136,6 +155,7 @@ def random(
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     coords = random_rust(nv, xmin, xmax, ymin, ymax, seed)
+
     if sizes is not None:
         sizes = np.array(sizes, dtype=np.float64)
         pdis = squareform(pdist(coords, metric="euclidean"))
@@ -165,7 +185,7 @@ def random(
 def shell(
     network,
     nlist: Sequence[Sequence[Hashable]],
-    radius: float = 1.0,
+    scale: float = 1.0,
     center: tuple[float, float] = (0.0, 0.0),
     theta: float = 0.0,
 ):
@@ -174,7 +194,7 @@ def shell(
     Parameters:
         network: The network to layout.
         nlist: List of lists of nodes in each shell.
-        radius: The radius of the shell.
+        scale: The distance between consecutive shell layers.
         center: The center of the shell as a tuple (x, y).
         theta: The angle of the shell in radians.
     Returns:
@@ -188,7 +208,8 @@ def shell(
         return pd.DataFrame(columns=["x", "y"], dtype=np.float64)
 
     nnodes_by_shell = [len(x) for x in nlist]
-    coords = shell_rust(nnodes_by_shell, radius, center, np.degrees(theta))
+    coords = shell_rust(nnodes_by_shell, scale, center, np.degrees(theta))
+
     nodes = []
     for nodes_shell in nlist:
         nodes.extend(list(nodes_shell))
@@ -196,8 +217,6 @@ def shell(
     layout = pd.DataFrame(coords, index=nodes, columns=["x", "y"])
 
     # NOTE: reorder to match initial nodes
-    print(provider.vertices())
-    print(layout.index)
     layout = layout.loc[provider.vertices()]
 
     return layout
@@ -205,7 +224,7 @@ def shell(
 
 def spiral(
     network,
-    radius: float = 1.0,
+    scale: float = 1.0,
     center: tuple[float, float] = (0.0, 0.0),
     slope: float = 0.25,
     exponent: float = 1.0,
@@ -215,8 +234,8 @@ def spiral(
 
     Parameters:
         network: The network to layout.
-        radius: The radius of the shell.
-        center: The center of the shell as a tuple (x, y).
+        scale: A linear scaling factor for the spiral size.
+        center: The center of the spiral as a tuple (x, y).
         slope: The slope of the spiral.
         exponent: The exponent of the spiral.
         theta: The initial angle of the layout in radians.
@@ -235,7 +254,7 @@ def spiral(
     else:
         coords = spiral_rust(nv, slope, np.degrees(theta), exponent)
         rmax = np.linalg.norm(coords, axis=1).max()
-        coords *= radius / rmax
+        coords *= scale / rmax
         coords += np.array(center, dtype=np.float64)
 
     layout = pd.DataFrame(coords, index=provider.vertices(), columns=["x", "y"])
