@@ -3,7 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import ilayoutx 
+import ilayoutx
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -96,10 +96,10 @@ html_theme_options = {
 
 import sys
 import os
+link_github = False
 link_github = True
 from pathlib import Path
 from packaging.version import parse as parse_version
-# You can add build old with link_github = False
 
 if link_github:
     import inspect

@@ -1,24 +1,24 @@
 # Layouts Feature Table
 
-| Shape | Angle (theta) | Center control | Scaling | Random seed | Sizing | max iter | Init coords | Additional params* |
+| Layout | Angle | Center/Position | Scaling/Radius | Random seed | Sizing | max iter | Init coords | Additional params* |
 |-|-|-|-|-|-|-|-|-|
-| Line| ✓ | ✕ | ✕| ✕| ✕ | ✕ | ✕ | todo: center control |
-| Circle | ✓ | ✓ | ✓| ✕| ? |✕ | ✕ | Radius |
-| Shell | ✓ | ✓ | ✓| ✕| ✕ |✕ | ✕ | Nlist, Radius |
-| Spiral | ✓ | ✓ | ✓| ✕| ✕ |✕ | ✕ | Radius, slope, exponent |
-| Random | ✕ | ✕ | ✕| ✓| ✕ |✕ | ✕ | Min & Max x,y, max_tries |
-| Grid | ✕ | ✕ | ✓| ✕| ✕ |✕ | ✕ | width, shape, trim_even_rows (triangular) |
-| Bipartite | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
-| Multipartite | ✕ | ✓ | ✕| ✕| ✕ |✕ | ✕ | nlist (list of nodelist) |
-| Sugiyama | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
-| Spring | ✕ | ✕ | ✓ | ✓ | ✓ |✓ | ✓ | Optimal_distance, Gravity, Fixed nodes, method (force/energy), exponent attraction/repulsion, etol|
-| Kamada Kawai | ✕ | ✕ | ✕ | ✓ | ✕ |✕ | ✕ | - |
-| Arf | ✕ | ✓ | ✓ | ✓| ✕ |✓ | ✓ | Etol, Spring_strengh, dt (time step) |
-| Forceatlas2| ✕| ✓ | ✓| ✓ | ✓ |✓ | ✓ | Jitter_tolerance, Gravity + Strong_gravity, Distribution_action, Mass, Dissuade_hubs, Linlog, Etol |
-| Graph embedder| ✕| ✓ | ✓ | ✓ | ✓ | ✓| ✓ | etol, inplace |
-| Large graph layout| ✕ | ✓ | ✓| ✓| ✕ | ✓|✓ | inplace |
-| Geometric | ✕ | ✓ | ✕ | ✓| ✕ |✕ | ✕ | edge lengths, tol |
-| Multidimensional scaling | ✕ | ✓ | ✕ | ✕ | ✕ |✕ | ✕| distance_matrix, inplace, check_connectedness |
-| UMAP | ✕ | ✕ | ✕ | ✕ | ✕ |✓ | ✓ | edge distance & weights, fixed, min_dist, spread, negative_sampling_rate, inplace, backend |
+| {py:func}`Line <ilayoutx.layouts.line>`| ✓ | ✕ | ✕| ✕| ✕ | ✕ | ✕ | - |
+| {py:func}`Circle <ilayoutx.layouts.circle>` | ✓ | ✓ | ✓| ✓| ? |✕ | ✕ | - |
+| {py:func}`Shell <ilayoutx.layouts.shell>` | ✓ | ✓ | ✓| ✓| ✕ |✕ | ✕ | - |
+| {py:func}`Spiral <ilayoutx.layouts.spiral>` | ✓ | ✓ | ✓| ✓| ✕ |✕ | ✕ | slope, exponent |
+| {py:func}`Random <ilayoutx.layouts.random>` | ✕ | ✕ | ✕| ✓| ✕ |✕ | ✕ | max_tries |
+| {py:func}`Grid <ilayoutx.layouts.grid>` | ✕ | ✕ | ✓| ✕| ✕ |✕ | ✕ | width, shape, trim_even_rows (triangular) |
+| {py:func}`Bipartite <ilayoutx.layouts.bipartite>` | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
+| {py:func}`Multipartite <ilayoutx.layouts.multipartite>` | ✕ | ✓ | ✕| ✕| ✕ |✕ | ✕ | - |
+| {py:func}`Sugiyama <ilayoutx.layouts.sugiyama>` | ✕ | ✓ | ✕ | ✕| ✕ |✕ | ✕ | first partition |
+| {py:func}`Spring <ilayoutx.layouts.spring>` | ✕ | ✕ | ✓ | ✓ | ✓ |✓ | ✓ | optimal_distance, gravity, fixed nodes, method (force/energy), exponent attraction/repulsion, etol|
+| {py:func}`Kamada Kawai <ilayoutx.layouts.kamada_kawai>` | ✕ | ✕ | ✕ | ✓ | ✕ |✕ | ✕ | - |
+| {py:func}`Arf <ilayoutx.layouts.arf>` | ✕ | ✓ | ✓ | ✓| ✕ |✓ | ✓ | etol, spring_strengh, dt (time step) |
+| {py:func}`Forceatlas2 <ilayoutx.layouts.forceatlas2>`| ✕| ✓ | ✓| ✓ | ✓ |✓ | ✓ | jitter_tolerance, gravity + gtrong_gravity, distribution_action, mass, dissuade_hubs, linlog, etol |
+| {py:func}`Graph Embedder <ilayoutx.layouts.graph_embedder>`| ✕| ✓ | ✓ | ✓ | ✓ | ✓| ✓ | etol, inplace |
+| {py:func}`Large Graph Layout <ilayoutx.layouts.large_graph_layout>`| ✕ | ✓ | ✓| ✓| ✕ | ✓|✓ | inplace |
+| {py:func}`Geometric <ilayoutx.layouts.geometric>` | ✕ | ✓ | ✕ | ✓| ✕ |✕ | ✕ | edge lengths, tol |
+| {py:func}`Multidimensional scaling <ilayoutx.layouts.multidimensional_scaling>` | ✕ | ✓ | ✕ | ✕ | ✕ |✕ | ✕| distance_matrix, inplace, check_connectedness |
+| {py:func}`UMAP <ilayoutx.layouts.umap>` | ✕ | ✕ | ✕ | ✕ | ✕ |✓ | ✓ | edge distance, edge weights, fixed, min_dist, spread, negative_sampling_rate, inplace, backend |
 
-* See [Layout documentation](./api/layouts.md) for exact requirements and further information about these params.
+* See Layout documentation(./api/layouts.md) for exact requirements and further information about these params.
