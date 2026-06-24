@@ -32,11 +32,12 @@ def _normalize_distance_matrix(
     """Normalize the distance matrix to a square numpy array."""
     if isinstance(mat, dict):
         tmp = pd.Series(np.arange(nv), index=index)
+        matdict = mat
         mat = np.zeros((nv, nv), dtype=np.float64)
-        for (v1, v2), d in mat.items():
+        for (v1, v2), d in matdict.items():
             i1, i2 = tmp[v1], tmp[v2]
             mat[i1, i2] = d
-        del tmp
+        del tmp, matdict
 
     elif isinstance(mat, (list, tuple)):
         # Convert list of lists to numpy array

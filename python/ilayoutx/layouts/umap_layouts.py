@@ -705,7 +705,8 @@ def umap(
         if negative_sampling_rate is None:
             ne = len(sym_edge_df)
             negative_sampling_rate = max(2, int((nv * 5) / ne))
-            print(f"Negative sampling rate set to {negative_sampling_rate}.")
+            if DEBUG_UMAP:
+                print(f"Negative sampling rate set to {negative_sampling_rate}.")
 
         if DEBUG_UMAP:
             import time

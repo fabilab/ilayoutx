@@ -143,18 +143,18 @@ if link_github:
 
         linespec = f"#L{lineno:d}-L{lineno + len(source) - 1:d}" if lineno else ""
 
-        startdir = Path(iplotx.__file__).parent.parent
+        startdir = Path(ilayoutx.__file__).parent.parent
         try:
             fn = os.path.relpath(fn, start=startdir).replace(os.path.sep, "/")
         except ValueError:
             return None
 
-        if not fn.startswith("iplotx/"):
+        if not fn.startswith("ilayoutx/"):
             return None
 
-        version = parse_version(iplotx.__version__)
+        version = parse_version(ilayoutx.__version__)
         tag = "main" if version.is_devrelease else f"v{version.public}"
-        return f"https://github.com/fabilab/iplotx/blob/{tag}/{fn}{linespec}"
+        return f"https://github.com/fabilab/ilayoutx/blob/{tag}/{fn}{linespec}"
 
 else:
     extensions.append("sphinx.ext.viewcode")

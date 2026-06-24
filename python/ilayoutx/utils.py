@@ -72,7 +72,7 @@ def _recenter_layout(
     NOTE: The layout is recentered based on extreme values, not barycentering.
     """
     xymin = coords.min()
-    xymax = coords.min()
+    xymax = coords.max()
     xycenter = 0.5 * (xymin + xymax)
 
     shift = np.array(center) - xycenter
