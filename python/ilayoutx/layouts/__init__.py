@@ -33,6 +33,7 @@ from .dendrogram_layouts import (
     circular_dendrogram,
     edgebundle,
 )
+from .neato_layouts import neato
 
 
 __all__ = (
@@ -46,6 +47,7 @@ __all__ = (
     grid.__name__,
     geometric.__name__,
     kamada_kawai.__name__,
+    neato.__name__,
     arf.__name__,
     forceatlas2.__name__,
     spring.__name__,
