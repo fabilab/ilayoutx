@@ -2,9 +2,13 @@ from typing import (
     Optional,
     Sequence,
 )
+import warnings
 import numpy as np
 import pandas as pd
-from scipy.sparse import coo_matrix, csc_array
+from scipy.sparse import (
+    coo_matrix,
+    SparseEfficiencyWarning,
+)
 from scipy.sparse.linalg import cg
 
 from ..ingest import (
@@ -40,6 +44,12 @@ def _stress(
         The stress value.
     """
     # NOTE: edges are not duplicated, therefore this already works as an i<j condition
+    if DEBUG_NEATO:
+        print("  Computing stress:")
+        print(f"   de_edges: {de_edges}")
+        print(f"   d_edges: {d_edges}")
+        print(f"   w_edges: {w_edges}")
+
     return (w_edges * ((de_edges - d_edges) ** 2)).sum()
 
 
@@ -85,7 +95,8 @@ def _majorise_stress(
     X: np.ndarray,
     edges: Sequence[tuple[Hashable, Hashable]],
     degrees: Sequence[int],
-    etol: float = 1e-4,
+    atol=1e-6,
+    rtol: float = 1e-4,
     max_iter: int = 50,
 ) -> None:
     """Majorise stress function via iterative conjugate gradient.
@@ -114,101 +125,135 @@ def _majorise_stress(
     d_edges = np.ones(edges.shape[0], dtype=np.float64)
     w_edges = 1.0 / d_edges / d_edges
 
-    # Construct the graph Laplacian matrix (constant throughout, acts as a North star)
-    # Start with one off-diagonal half
-    Lw = coo_matrix(
-        (-w_edges, (edges[:, 0], edges[:, 1])),
-        shape=(nv, nv),
-        dtype=np.float64,
-    )
-    # The other off-diagonal half since edges are not duplicated
-    Lw += Lw.T
-    # Add the diagonal entries
-    Lw += coo_matrix(
-        (degrees, (np.arange(nv), np.arange(nv))),
-        shape=(nv, nv),
-        dtype=np.float64,
-    )
-    # Convert to whatever scipy's optimiser likes to eat later on
-    Lw = csc_array(Lw)
+    # TODO: see if something can be done about the efficiency warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SparseEfficiencyWarning)
 
-    # Compute the half delta matrix delta_ij (awkward notation)
-    delta_nonsym = coo_matrix(
-        (1.0 / w_edges, (edges[:, 0], edges[:, 1])),
-        shape=(nv, nv),
-        dtype=np.float64,
-    )
+        # Construct the graph Laplacian matrix (constant throughout, acts as a North star)
+        # Start with one off-diagonal half
+        Lw = coo_matrix(
+            (-w_edges, (edges[:, 0], edges[:, 1])),
+            shape=(nv, nv),
+            dtype=np.float64,
+        )
+        # The other off-diagonal half since edges are not duplicated
+        Lw += Lw.T
+        # Add the diagonal entries
+        Lw += coo_matrix(
+            (degrees, (np.arange(nv), np.arange(nv))),
+            shape=(nv, nv),
+            dtype=np.float64,
+        )
 
-    # Compute the initial stress for the first round of iteration
-    de_edges = _compute_demb_edges(X, edges)
-    stress_X = _stress(de_edges, d_edges, w_edges)
+        # Compute the half delta matrix delta_ij (awkward notation)
+        delta_nonsym = coo_matrix(
+            (1.0 / w_edges, (edges[:, 0], edges[:, 1])),
+            shape=(nv, nv),
+            dtype=np.float64,
+        )
 
-    # Each iteration we have:
-    # b = L^X(t) * X(t)
-    # and we solve for the next iter X(t+1)
-    LX = _compute_LX(delta_nonsym, de_edges)
-    b = np.array(LX @ X)
+        # Compute the initial stress for the first round of iteration
+        de_edges = _compute_demb_edges(X, edges)
+        stress_X = _stress(de_edges, d_edges, w_edges)
 
-    if DEBUG_NEATO:
-        print(f"Initial stress = {stress_X}")
-        print(f"Number of vertices: {nv}, number of edges (nonduplicated): {edges.shape[0]}")
-        print(f"Lw shape:\n{Lw.shape}")
-        print(f"LX shape:\n{LX.shape}")
-        print(f"X shape:\n{X.shape}")
-        print(f"b = LX @ X shape:\n{b.shape}")
+        # Each iteration we have:
+        # b = L^X(t) * X(t)
+        # and we solve for the next iter X(t+1)
+        LX = _compute_LX(delta_nonsym, de_edges)
+        b = np.array(LX @ X)
 
-    for t in range(max_iter):
-        # FIXME: remove degeneracy by fixing position of a vertex (translation/rotation)
+        if DEBUG_NEATO:
+            print(f"Initial stress = {stress_X}")
+            print(f"Number of vertices: {nv}, number of edges (nonduplicated): {edges.shape[0]}")
+            print(f"Lw shape:\n{Lw.shape}")
+            print(f"LX shape:\n{LX.shape}")
+            print(f"X shape:\n{X.shape}")
+            print(f"b = LX @ X shape:\n{b.shape}")
 
-        Xnext_0, exit_code = cg(Lw, b[:, 0], atol=1e-5)
-        Xnext_1, exit_code = cg(Lw, b[:, 1], atol=1e-5)
-        Xnext = np.column_stack((Xnext_0, Xnext_1))
+        for t in range(max_iter):
+            # TODO: remove degeneracy by fixing position of a vertex (translation/rotation)?
 
-        # FIXME: explain better what's up
-        if exit_code != 0:
-            print(
-                f"Conjugate gradient solver did not converge at iteration {t}. Exit code: {exit_code}"
-            )
+            Xnext_0, exit_code0 = cg(Lw, b[:, 0], atol=1e-5)
+            Xnext_1, exit_code1 = cg(Lw, b[:, 1], atol=1e-5)
 
+            Xnext = np.column_stack((Xnext_0, Xnext_1))
+
+            if exit_code0 != 0:
+                print(
+                    f"Conjugate gradient solver did not converge at iteration {t} for coordinate x. Exit code: {exit_code0}"
+                )
+
+                if DEBUG_NEATO:
+                    print(f"Lw:\n{Lw.toarray()}")
+                    print(f"LX:\n{LX.toarray()}")
+                    print(f"X:\n{X}")
+                    print(f"LX @ X:\n{b}")
+
+                break
+            if exit_code1 != 0:
+                print(
+                    f"Conjugate gradient solver did not converge at iteration {t} for coordinate y. Exit code: {exit_code1}"
+                )
+
+                if DEBUG_NEATO:
+                    print(f"Lw:\n{Lw.toarray()}")
+                    print(f"LX:\n{LX.toarray()}")
+                    print(f"X:\n{X}")
+                    print(f"LX @ X:\n{b}")
+
+                break
+
+            if t == max_iter - 1:
+                if DEBUG_NEATO:
+                    de_edges = _compute_demb_edges(X, edges)
+                    stress_Xnext = _stress(de_edges, d_edges, w_edges)
+                    relative_stress_change = abs(stress_Xnext - stress_X) / stress_X
+                    print(f"Iteration {t}:")
+                    print("  distance_embedding_edges:")
+                    for tmp in de_edges:
+                        print(f"    {tmp}")
+                    print(
+                        f" stress = {stress_X}, relative stress change = {relative_stress_change}"
+                    )
+
+                break
+
+            # NOTE: Change the input variable in place to save some memory
+            X[:] = Xnext
+
+            de_edges = _compute_demb_edges(X, edges)
+            stress_Xnext = _stress(de_edges, d_edges, w_edges)
+            absolute_stress_change = abs(stress_Xnext - stress_X)
+            relative_stress_change = absolute_stress_change / stress_X
             if DEBUG_NEATO:
-                print(f"Lw:\n{Lw.toarray()}")
-                print(f"LX:\n{LX.toarray()}")
-                print(f"X:\n{X}")
-                print(f"LX @ X:\n{b}")
-
-            break
-
-        if t == max_iter - 1:
-            if DEBUG_NEATO:
-                de_edges = _compute_demb_edges(X, edges)
-                stress_Xnext = _stress(de_edges, d_edges, w_edges)
-                relative_stress_change = abs(stress_Xnext - stress_X) / stress_X
                 print(f"Iteration {t}:")
                 print("  distance_embedding_edges:")
                 for tmp in de_edges:
                     print(f"    {tmp}")
                 print(f" stress = {stress_X}, relative stress change = {relative_stress_change}")
 
-            break
+            if absolute_stress_change < atol:
+                if DEBUG_NEATO:
+                    print(
+                        f"Converged at iteration {t} with absolute stress change {absolute_stress_change} < atol {atol}."
+                    )
+                    print("Coordinates:")
+                    print(f"{X}")
+                break
 
-        X = Xnext
-        de_edges = _compute_demb_edges(X, edges)
-        stress_Xnext = _stress(de_edges, d_edges, w_edges)
-        relative_stress_change = abs(stress_Xnext - stress_X) / stress_X
-        if DEBUG_NEATO:
-            print(f"Iteration {t}:")
-            print("  distance_embedding_edges:")
-            for tmp in de_edges:
-                print(f"    {tmp}")
-            print(f" stress = {stress_X}, relative stress change = {relative_stress_change}")
+            if relative_stress_change < rtol:
+                if DEBUG_NEATO:
+                    print(
+                        f"Converged at iteration {t} with relative stress change {relative_stress_change} < rtol {rtol}."
+                    )
+                    print("Coordinates:")
+                    print(f"{X}")
+                break
 
-        if relative_stress_change < etol:
-            break
-
-        # Prepare variables for the next round
-        stress_X = stress_Xnext
-        LX = _compute_LX(delta_nonsym, de_edges)
-        b = np.array(LX @ X)
+            # Prepare variables for the next round
+            stress_X = stress_Xnext
+            LX = _compute_LX(delta_nonsym, de_edges)
+            b = np.array(LX @ X)
 
 
 def neato(
@@ -219,9 +264,10 @@ def neato(
         | np.ndarray
         | pd.DataFrame
     ] = None,
-    center: tuple[float, float] = (0, 0),
-    scale: Optional[float] = 1.0,
-    etol: float = 1e-4,
+    center: Optional[tuple[float, float]] = None,
+    scale: Optional[float] = None,
+    atol=1e-6,
+    rtol: float = 1e-4,
     max_iter: int = 50,
     seed: Optional[int] = None,
 ) -> pd.DataFrame:
@@ -285,10 +331,13 @@ def neato(
                 X=initial_coords,
                 edges=edges,
                 degrees=provider.degrees(),
-                etol=etol,
+                atol=atol,
+                rtol=rtol,
                 max_iter=max_iter,
             )
+
         coords = initial_coords
+        print(f"Final coordinates:\n{coords}")
 
     if center is not None:
         _recenter_layout(coords, center)
