@@ -55,6 +55,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - spring (Fruchterman-Reingold)
   - ARF
   - Forceatlas2
+  - Neato (from GraphViz)
   - Kamada-Kawai
   - GEM (graph embedder)
   - Geometric (from [netgraph](https://github.com/paulbrodersen/netgraph))
