@@ -5,16 +5,12 @@ build-backend = "maturin"
 [project]
 name = "ilayoutx"
 description = "Universal library for network node layout and edge routing."
-authors = [
-  {name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au"}
-]
-maintainers = [
-  {name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au"}
-]
+authors = [{ name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au" }]
+maintainers = [{ name = "Fabio Zanini", email = "fabio.zanini@unsw.edu.au" }]
 requires-python = ">=3.11"
 readme = "README.md"
 dynamic = ["version"]
-license = {text = "MIT"}
+license = { text = "MIT" }
 license-files = ["LICEN[CS]E.*"]
 keywords = ["network", "graph", "layout", "routing", "embedding"]
 classifiers = [
@@ -53,10 +49,7 @@ dependencies = [
 
 [project.optional-dependencies]
 fastmath = ["numba>=0.63.1"]
-plot = [
-  "matplotlib>=3.10.0",
-  "iplotx>=1.6.0",
-]
+plot = ["matplotlib>=3.10.0", "iplotx>=1.6.0"]
 all = ["ilayoutx[fastmath,plot]"]
 
 [dependency-groups]
@@ -68,14 +61,8 @@ test-noumap = [
   #"pandas-stubs>=2.2.3.250527",
   "types-networkx>=3.5.0.20250610",
 ]
-test = [
-  {include-group = "test-noumap"},
-  "umap-learn>=0.5.11",
-]
-profile = [
-  {include-group = "test"},
-  "tprof>=1.0.0",
-]
+test = [{ include-group = "test-noumap" }, "umap-learn>=0.5.11"]
+profile = [{ include-group = "test" }, "tprof>=1.0.0"]
 docs = [
   "sphinx",
   "myst-parser>=4.0.1",
@@ -92,10 +79,17 @@ dev = [
   "ipdb>=0.13.13",
   "coverage>=7.13.1",
   "genbadge>=1.1.3",
+  "igraph>=0.11.8",
+  "networkx>=3.4.2",
+  # TODO: Graphviz/pydot for neato??
 ]
 
 typing = ["mypy", "types-requests"]
-typing-test = [{include-group = "typing"}, {include-group = "test"}, "useful-types"]
+typing-test = [
+  { include-group = "typing" },
+  { include-group = "test" },
+  "useful-types",
+]
 
 [project.urls]
 Homepage = "https://github.com/fabilab/ilayoutx"

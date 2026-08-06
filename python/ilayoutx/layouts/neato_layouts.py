@@ -7,9 +7,16 @@ import pandas as pd
 from scipy.sparse import coo_matrix, csc_array
 from scipy.sparse.linalg import cg
 
+from ..ingest import (
+    network_library,
+    data_providers,
+)
 from ..utils import (
     _format_initial_coords,
     _recenter_layout,
+)
+from .._ilayoutx import (
+    random as random_rust,
 )
 
 
@@ -71,18 +78,24 @@ def _compute_LX(
 
 
 def _majorise_stress(
-    nv: int,
+    X: np.ndarray,
     edges: Sequence[tuple[Hashable, Hashable]],
     degrees: Sequence[int],
-    X: np.ndarray,
     etol: float = 1e-4,
     max_iter: int = 50,
 ) -> None:
-    """Majorise stress function via iterative conjugate gradient."""
-    # For details and notation see: https://www.graphviz.org/documentation/GKN04.pdf
+    """Majorise stress function via iterative conjugate gradient.
+
+    NOTE: For details and notation see: https://www.graphviz.org/documentation/GKN04.pdf
+    """
+    nv = len(X)
 
     # Convert edge data structure into a *nonduplicated* Mx2 numpy array of ints
     edges = np.array(edges, dtype=np.int64)
+
+    # Filter out loops, they are irrelevant anyway
+    edges = edges[edges[:, 0] != edges[:, 1]]
+
     # Weights are always one for now
     d_edges = np.ones(edges.shape[0], dtype=np.float64)
     w_edges = 1.0 / d_edges / d_edges
@@ -157,6 +170,7 @@ def neato(
     scale: Optional[float] = 1.0,
     etol: float = 1e-4,
     max_iter: int = 50,
+    seed: Optional[int] = None,
 ) -> pd.DataFrame:
     """Neato layout algorithm.
 
@@ -180,6 +194,12 @@ def neato(
     nl = network_library(network)
     provider = data_providers[nl](network)
 
+    # If the graph is not undirected, fail
+    if provider.is_directed():
+        raise ValueError("Neato layout only works for undirected graphs.")
+
+    # TODO: Check for multiedges?? maybe ok. Loops are excluded later on
+
     # Compute the distance matrix.
     tmp = provider.get_shortest_distance()
     dist = tmp["matrix"]
@@ -201,7 +221,7 @@ def neato(
         initial_coords = _format_initial_coords(
             initial_coords,
             index=index,
-            fallback=lambda: circle(nv, radius=0.5 * np.sqrt(nv)),
+            fallback=lambda: random_rust(nv, seed=seed),
         )
         initial_coords.setflags(write=True)
 
@@ -209,9 +229,9 @@ def neato(
             edges = provider.edges()
 
             _majorise_stress(
-                nv,
-                edges,
-                initial_coords,
+                X=initial_coords,
+                edges=edges,
+                degrees=provider.degrees(),
                 etol=etol,
                 max_iter=max_iter,
             )
