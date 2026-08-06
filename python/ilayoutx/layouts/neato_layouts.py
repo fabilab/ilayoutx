@@ -76,8 +76,8 @@ def _compute_LX(
     # symmetrise
     lx += lx.T
     # add diagonal (it makes the sum of each row/column zero)
-    diag = np.array(lx.sum(axis=1)).flatten()
-    lx[np.arange(lx.shape[0]), np.arange(lx.shape[0])] = diag
+    row_off_diag_sum = np.array(lx.sum(axis=1)).flatten()
+    lx[np.arange(lx.shape[0]), np.arange(lx.shape[0])] = -row_off_diag_sum
     return lx
 
 
@@ -104,6 +104,8 @@ def _majorise_stress(
     if DEBUG_NEATO:
         print("Edges after casting to 2D array (nonduplicated):")
         print(edges)
+        print("Initial coordinates:")
+        print(X)
 
     # Filter out loops, they are irrelevant anyway
     edges = edges[edges[:, 0] != edges[:, 1]]
@@ -139,22 +141,23 @@ def _majorise_stress(
 
     # Compute the initial stress for the first round of iteration
     de_edges = _compute_demb_edges(X, edges)
-    LX = _compute_LX(delta_nonsym, de_edges)
     stress_X = _stress(de_edges, d_edges, w_edges)
+
+    # Each iteration we have:
+    # b = L^X(t) * X(t)
+    # and we solve for the next iter X(t+1)
+    LX = _compute_LX(delta_nonsym, de_edges)
+    b = np.array(LX @ X)
+
+    if DEBUG_NEATO:
+        print(f"Initial stress = {stress_X}")
+        print(f"Number of vertices: {nv}, number of edges (nonduplicated): {edges.shape[0]}")
+        print(f"Lw shape:\n{Lw.shape}")
+        print(f"LX shape:\n{LX.shape}")
+        print(f"X shape:\n{X.shape}")
+        print(f"b = LX @ X shape:\n{b.shape}")
+
     for t in range(max_iter):
-        # Each iteration we have:
-        # b = L^X(t) * X(t)
-        # and we solve for the next iter X(t+1)
-        b = np.array(LX @ X)
-
-        if DEBUG_NEATO:
-            print(f"Iteration {t}: stress = {stress_X}")
-            print(f"Number of vertices: {nv}, number of edges (nonduplicated): {edges.shape[0]}")
-            print(f"Lw shape:\n{Lw.shape}")
-            print(f"LX shape:\n{LX.shape}")
-            print(f"X shape:\n{X.shape}")
-            print(f"b = LX @ X shape:\n{b.shape}")
-
         # FIXME: remove degeneracy by fixing position of a vertex (translation/rotation)
 
         Xnext_0, exit_code = cg(Lw, b[:, 0], atol=1e-5)
@@ -166,21 +169,46 @@ def _majorise_stress(
             print(
                 f"Conjugate gradient solver did not converge at iteration {t}. Exit code: {exit_code}"
             )
+
+            if DEBUG_NEATO:
+                print(f"Lw:\n{Lw.toarray()}")
+                print(f"LX:\n{LX.toarray()}")
+                print(f"X:\n{X}")
+                print(f"LX @ X:\n{b}")
+
             break
 
         if t == max_iter - 1:
-            continue
+            if DEBUG_NEATO:
+                de_edges = _compute_demb_edges(X, edges)
+                stress_Xnext = _stress(de_edges, d_edges, w_edges)
+                relative_stress_change = abs(stress_Xnext - stress_X) / stress_X
+                print(f"Iteration {t}:")
+                print("  distance_embedding_edges:")
+                for tmp in de_edges:
+                    print(f"    {tmp}")
+                print(f" stress = {stress_X}, relative stress change = {relative_stress_change}")
+
+            break
 
         X = Xnext
         de_edges = _compute_demb_edges(X, edges)
         stress_Xnext = _stress(de_edges, d_edges, w_edges)
         relative_stress_change = abs(stress_Xnext - stress_X) / stress_X
+        if DEBUG_NEATO:
+            print(f"Iteration {t}:")
+            print("  distance_embedding_edges:")
+            for tmp in de_edges:
+                print(f"    {tmp}")
+            print(f" stress = {stress_X}, relative stress change = {relative_stress_change}")
+
         if relative_stress_change < etol:
             break
 
         # Prepare variables for the next round
         stress_X = stress_Xnext
         LX = _compute_LX(delta_nonsym, de_edges)
+        b = np.array(LX @ X)
 
 
 def neato(
