@@ -11,9 +11,6 @@ The algorithm has four key steps:
 from typing import (
     Optional,
 )
-from collections.abc import (
-    Hashable,
-)
 import numpy as np
 import pandas as pd
 
@@ -732,7 +729,10 @@ def sugiyama(
         theta: Angle in radians to rotate the layout.
         shift: Shift the layout by this vector after rotation.
     Returns:
-        The layout of the network.
+        If "return_waypoints" is False, a DataFrame with the coordinates of the vertices.
+        If True (default), a tuple in which the first element if the same DataFrame and
+        the second element is a dict mapping pairs of vertices to lists of waypoints for
+        skip-layer edges.
     """
 
     nl = network_library(network)

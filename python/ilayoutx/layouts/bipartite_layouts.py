@@ -21,7 +21,7 @@ def bipartite(
 
     Parameters:
         network: The network to layout.
-        first: Sequece or set of node ids in the first partition. If None, the underlying network
+        first: Sequence or set of node ids in the first partition. If None, the underlying network
             library will attempt to discover the bipartite partitions.
         theta: Rotation angle in radians.
     Returns:

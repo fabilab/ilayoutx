@@ -93,8 +93,13 @@ html_theme_options = {
 # -----------------------------------------------------------------------------
 # Source code links (credit to the matplotlib project for this part)
 # -----------------------------------------------------------------------------
+
+import sys
+import os
+link_github = False
 link_github = True
-# You can add build old with link_github = False
+from pathlib import Path
+from packaging.version import parse as parse_version
 
 if link_github:
     import inspect

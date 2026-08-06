@@ -32,7 +32,7 @@ def grid(
         network: The network to layout.
         width: The width of the grid.
         shape: The shape of the grid, either 'square' or 'triangle'.
-        trim_even_rows: Only usef for triangular lattices. If True, trim the even rows by one
+        trim_even_rows: Only used for triangular lattices. If True, trim the even rows by one
             vertex to fit the width.
         center: If not None, recenter the final layout at this point as a tuple (x, y).
     Returns:
