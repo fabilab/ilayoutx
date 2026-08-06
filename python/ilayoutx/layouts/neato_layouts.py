@@ -18,6 +18,10 @@ from ..utils import (
 from .._ilayoutx import (
     random as random_rust,
 )
+from ilayoutx.experimental.utils import get_debug_bool
+
+
+DEBUG_NEATO = get_debug_bool("ILAYOUTX_DEBUG_NEATO", default=False)
 
 
 def _stress(
@@ -90,8 +94,16 @@ def _majorise_stress(
     """
     nv = len(X)
 
+    if DEBUG_NEATO:
+        print("Edges (nonduplicated):")
+        print(edges)
+
     # Convert edge data structure into a *nonduplicated* Mx2 numpy array of ints
     edges = np.array(edges, dtype=np.int64)
+
+    if DEBUG_NEATO:
+        print("Edges after casting to 2D array (nonduplicated):")
+        print(edges)
 
     # Filter out loops, they are irrelevant anyway
     edges = edges[edges[:, 0] != edges[:, 1]]
@@ -103,7 +115,7 @@ def _majorise_stress(
     # Construct the graph Laplacian matrix (constant throughout, acts as a North star)
     # Start with one off-diagonal half
     Lw = coo_matrix(
-        (-w_edges, edges[:, 0], edges[:, 1]),
+        (-w_edges, (edges[:, 0], edges[:, 1])),
         shape=(nv, nv),
         dtype=np.float64,
     )
@@ -111,7 +123,7 @@ def _majorise_stress(
     Lw += Lw.T
     # Add the diagonal entries
     Lw += coo_matrix(
-        (degrees, np.arange(nv), np.arange(nv)),
+        (degrees, (np.arange(nv), np.arange(nv))),
         shape=(nv, nv),
         dtype=np.float64,
     )
@@ -120,7 +132,7 @@ def _majorise_stress(
 
     # Compute the half delta matrix delta_ij (awkward notation)
     delta_nonsym = coo_matrix(
-        (1.0 / w_edges, edges[:, 0], edges[:, 1]),
+        (1.0 / w_edges, (edges[:, 0], edges[:, 1])),
         shape=(nv, nv),
         dtype=np.float64,
     )
@@ -134,7 +146,20 @@ def _majorise_stress(
         # b = L^X(t) * X(t)
         # and we solve for the next iter X(t+1)
         b = np.array(LX @ X)
-        Xnext, exit_code = cg(Lw, b, atol=1e-5)
+
+        if DEBUG_NEATO:
+            print(f"Iteration {t}: stress = {stress_X}")
+            print(f"Number of vertices: {nv}, number of edges (nonduplicated): {edges.shape[0]}")
+            print(f"Lw shape:\n{Lw.shape}")
+            print(f"LX shape:\n{LX.shape}")
+            print(f"X shape:\n{X.shape}")
+            print(f"b = LX @ X shape:\n{b.shape}")
+
+        # FIXME: remove degeneracy by fixing position of a vertex (translation/rotation)
+
+        Xnext_0, exit_code = cg(Lw, b[:, 0], atol=1e-5)
+        Xnext_1, exit_code = cg(Lw, b[:, 1], atol=1e-5)
+        Xnext = np.column_stack((Xnext_0, Xnext_1))
 
         # FIXME: explain better what's up
         if exit_code != 0:
@@ -241,6 +266,6 @@ def neato(
         _recenter_layout(coords, center)
 
     if scale is not None:
-        coords *= scale / np.abs(coords).max()
+        coords *= scale
 
     return pd.DataFrame(coords, index=index, columns=["x", "y"])
