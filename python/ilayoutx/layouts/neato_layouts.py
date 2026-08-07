@@ -2,6 +2,9 @@ from typing import (
     Optional,
     Sequence,
 )
+from collections.abc import (
+    Hashable,
+)
 import warnings
 import numpy as np
 import pandas as pd
