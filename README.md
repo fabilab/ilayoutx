@@ -43,7 +43,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
 ### Layouts
 - **Shapes**:
   - line
-  - circle (supports vertex sizes)
+  - circle
   - shell
   - spiral
 
@@ -52,12 +52,12 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - triangular
 
 - **Force-directed**:
-  - spring (Fruchterman-Reingold)
+  - Fruchterman-Reingold
   - ARF
   - Forceatlas2
-  - Neato (from GraphViz)
+  - Neato / [stress majorization](https://www.graphviz.org/documentation/GKN04.pdf) (from [GraphViz](https://www.graphviz.org/docs/layouts/neato/))
   - Kamada-Kawai
-  - GEM (graph embedder)
+  - GEM / graph embedder
   - Geometric (from [netgraph](https://github.com/paulbrodersen/netgraph))
   - LGL (from [igraph](https://igraph.org/))
 
@@ -68,7 +68,7 @@ layout = ilx.layouts.multidimensional_scaling(G)
   - Circular edge bundle
 
 - **Machine learning**:
-  - UMAP (supports **arbitrary graphs**, not just knn graphs)
+  - UMAP (supports **arbitrary graphs** beyond KNN graphs)
 
 - **Other**:
   - bipartite
@@ -88,8 +88,8 @@ visualisation (intuitively, when zoomed out, things tend to look more crowded). 
 
 The following edge routing algorithms are implemented:
 
-- Sugiyama (DAG).
-- Edge bundle.
+- Sugiyama (for Directed Acyclic Graphs).
+- Edge bundles.
 
 ## Wishlist
 - **Tree-like**:
