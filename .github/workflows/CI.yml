@@ -64,7 +64,7 @@ jobs:
           source .venv/bin/activate
           pip install -U pip
           pip install --group test-noumap
-          pip install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
+          pip install dist/ilayoutx*cp314-manylinux*.whl --find-links dist --force-reinstall
           echo "Run pytest"
           pytest
       - name: pytest
@@ -82,7 +82,7 @@ jobs:
             pip3 install networkx igraph pytest
           run: |
             set -e
-            pip3 install dist/ilayoutx*cp314*.whl --find-links dist --force-reinstall
+            pip3 install dist/ilayoutx*cp314-manylinux*.whl --find-links dist --force-reinstall
             echo "Run pytest"
             pytest
 
