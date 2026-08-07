@@ -58,6 +58,7 @@ test-noumap = [
   "flake8>=3.9.0",
   "igraph>=0.11.8",
   "networkx>=3.4.2",
+  "pydot>=4.0.1",
   #"pandas-stubs>=2.2.3.250527",
   "types-networkx>=3.5.0.20250610",
 ]
@@ -75,13 +76,12 @@ docs = [
   "matplotlib>=3.10.0",
 ]
 dev = [
+  { include-group = "test" },
+  { include-group = "docs" },
   "ipython>=9.9.0",
   "ipdb>=0.13.13",
   "coverage>=7.13.1",
   "genbadge>=1.1.3",
-  "igraph>=0.11.8",
-  "networkx>=3.4.2",
-  # TODO: Graphviz/pydot for neato??
 ]
 
 typing = ["mypy", "types-requests"]

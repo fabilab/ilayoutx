@@ -1,4 +1,4 @@
-image: ubuntu/25.04
+image: ubuntu/26.04
 packages:
   - python3
   - python3-venv
